@@ -21,11 +21,11 @@ Legend: `[ ]` to do, `[x]` done. Every task ends with a **Done when** line. If y
 - **Done when:** `runserver` shows the welcome page, `migrate` runs cleanly, `pytest`, `ruff check .` and `mypy .` all pass, `.env` is not tracked by git.
 
 ## V1-1. Accounts
-- [ ] Email as the login field (change `USERNAME_FIELD`), unique email
-- [ ] API: register, login, logout, `me` (get and update timezone)
-- [ ] Session auth + CSRF working with a test client
-- [ ] Password validation on register
-- [ ] Tests: register, wrong password, logout, `me` rejects anonymous users
+- [x] Email as the login field (change `USERNAME_FIELD`), unique email
+- [x] API: register, login, logout, `me` (get and update timezone)
+- [x] Session auth + CSRF working with a test client
+- [x] Password validation on register
+- [x] Tests: register, wrong password, logout, `me` rejects anonymous users
 - **Done when:** you can register and log in with `curl` or the browser, and anonymous requests to `me` get 401/403.
 
 ## V1-2. Care links and the permission helper
