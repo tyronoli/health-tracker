@@ -6,7 +6,16 @@ from .models import User
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
+    ordering = ("email",)
+    list_display = ("email", "display_name", "is_staff")
+    search_fields = ("email", "display_name")
     fieldsets = (
-        *(UserAdmin.fieldsets or ()),
-        ("Preferences", {"fields": ("timezone",)}),
+        (None, {"fields": ("email", "password")}),
+        ("Profile", {"fields": ("display_name", "timezone")}),
+        (
+            "Permissions",
+            {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
+        ),
+        ("Important dates", {"fields": ("last_login", "date_joined")}),
     )
+    add_fieldsets = ((None, {"classes": ("wide",), "fields": ("email", "password1", "password2")}),)
