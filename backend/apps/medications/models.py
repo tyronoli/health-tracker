@@ -1,6 +1,9 @@
 from django.conf import settings
-from django.core.validators import MaxValueValidator
+from django.contrib.postgres.fields import ArrayField
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import F, Q
+from django.utils import timezone
 
 MAX_PILLS = 100_000
 
@@ -32,3 +35,32 @@ class Medication(models.Model):
     @property
     def low_supply(self) -> bool:
         return self.pills_remaining <= self.refill_threshold
+
+
+class Schedule(models.Model):
+    medication = models.ForeignKey(Medication, on_delete=models.CASCADE, related_name="schedules")
+    time_of_day = models.TimeField()  # the owner's local wall-clock time
+    days_of_week = ArrayField(
+        models.PositiveSmallIntegerField(validators=[MaxValueValidator(6)]), size=7
+    )  # Monday = 0 ... Sunday = 6
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    pills_per_dose = models.PositiveSmallIntegerField(
+        default=1, validators=[MinValueValidator(1), MaxValueValidator(100)]
+    )
+    active = models.BooleanField(default=True)
+    tracking_started_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["time_of_day", "id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(end_date__isnull=True) | Q(end_date__gte=F("start_date")),
+                name="schedule_end_not_before_start",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.medication.name} at {self.time_of_day:%H:%M}"
