@@ -1,19 +1,20 @@
-from typing import cast
+from typing import Any, cast
 
 from django.db.models import QuerySet
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 
 from apps.accounts.models import User
 from apps.care.permissions import check_object_access, get_target_profile
 
-from . import services
-from .models import Medication
-from .serializers import MedicationSerializer, RefillSerializer
+from . import scheduling, services
+from .models import Medication, Schedule
+from .serializers import MedicationSerializer, RefillSerializer, ScheduleSerializer
 
 
 class MedicationViewSet(viewsets.ModelViewSet):
@@ -65,3 +66,45 @@ class MedicationViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         medication = services.refill(medication, serializer.validated_data["pills_added"])
         return Response(MedicationSerializer(medication).data)
+
+    @action(detail=True, methods=["get", "post"], url_path="schedules")
+    def schedules(self, request: Request, pk: str | None = None) -> Response:
+        medication = self.get_object()  # GET needs read access, POST needs write access
+        if request.method == "GET":
+            return Response(ScheduleSerializer(medication.schedules.all(), many=True).data)
+        serializer = ScheduleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(medication=medication, tracking_started_at=scheduling.current_time())
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+TIMING_FIELDS = ("time_of_day", "days_of_week", "start_date", "end_date")
+
+
+class ScheduleViewSet(mixins.UpdateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
+    serializer_class = ScheduleSerializer
+    http_method_names = ["patch", "delete", "head", "options"]
+    lookup_value_regex = "[0-9]+"
+
+    def get_object(self) -> Schedule:
+        user = cast(User, self.request.user)
+        schedule = (
+            Schedule.objects.select_related("medication__owner")
+            .filter(pk=self.kwargs["pk"])
+            .first()
+        )
+        if schedule is None:
+            raise NotFound()
+        check_object_access(user, schedule.medication.owner, write=True)  # every route here writes
+        return schedule
+
+    def perform_update(self, serializer: BaseSerializer[Any]) -> None:
+        schedule = cast(Schedule, serializer.instance)
+        data = serializer.validated_data
+        retimed = any(f in data and data[f] != getattr(schedule, f) for f in TIMING_FIELDS)
+        reactivated = data.get("active") is True and not schedule.active
+        if retimed or reactivated:
+            # Doses before this moment must never be auto-marked as missed (see 4b).
+            serializer.save(tracking_started_at=scheduling.current_time())
+        else:
+            serializer.save()
