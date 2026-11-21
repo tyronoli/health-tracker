@@ -1,5 +1,5 @@
 from django.contrib.auth.models import AnonymousUser
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.accounts.models import User
 
@@ -38,3 +38,11 @@ def get_target_profile(user: User, profile_id: str | int | None, *, write: bool 
         # Same answer for "doesn't exist" and "not yours": no information leaks.
         raise PermissionDenied("You do not have access to this profile.")
     return target
+
+
+def check_object_access(user: User, owner: User, *, write: bool = False) -> None:
+    """Object-level gate: not visible at all -> 404; visible but read-only -> 403."""
+    if not can_access_profile(user, owner):
+        raise NotFound()
+    if write and not can_access_profile(user, owner, write=True):
+        raise PermissionDenied("You only have view access to this profile.")
