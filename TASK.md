@@ -11,13 +11,13 @@ Legend: `[ ]` to do, `[x]` done. Every task ends with a **Done when** line. If y
 # VERSION 1: core tracker (no AI)
 
 ## V1-0. Environment and project setup
-- [ ] WSL 2 + Ubuntu working; `.wslconfig` memory cap set
-- [ ] Repo created in `~/health-tracker`, `.gitignore`, `docs/` copied in
-- [ ] `docker-compose.yml` with Postgres; `docker compose up -d db` works
-- [ ] Django project `config`, `apps/accounts` with custom `User` (timezone field) created BEFORE first migrate
-- [ ] Settings read from environment variables; `.env.example` up to date
-- [ ] pytest + pytest-django, ruff, mypy configured; one passing smoke test
-- [ ] First commit
+- [x] WSL 2 + Ubuntu working; `.wslconfig` memory cap set
+- [x] Repo created in `~/health-tracker`, `.gitignore`, `docs/` copied in
+- [x] `docker-compose.yml` with Postgres; `docker compose up -d db` works
+- [x] Django project `config`, `apps/accounts` with custom `User` (timezone field) created BEFORE first migrate
+- [x] Settings read from environment variables; `.env.example` up to date
+- [x] pytest + pytest-django, ruff, mypy configured; one passing smoke test
+- [x] First commit
 - **Done when:** `runserver` shows the welcome page, `migrate` runs cleanly, `pytest`, `ruff check .` and `mypy .` all pass, `.env` is not tracked by git.
 
 ## V1-1. Accounts
@@ -29,17 +29,17 @@ Legend: `[ ]` to do, `[x]` done. Every task ends with a **Done when** line. If y
 - **Done when:** you can register and log in with `curl` or the browser, and anonymous requests to `me` get 401/403.
 
 ## V1-2. Care links and the permission helper
-- [ ] `CareLink` model: caregiver, recipient, permission (`view` | `edit`), status (`pending` | `active` | `revoked`)
-- [ ] Endpoints: invite by email, accept, decline, revoke (either side can revoke)
-- [ ] `can_access_profile(request_user, target_user, write=False)` in one place
-- [ ] Tests: owner allowed; stranger denied; pending link denied; revoked link denied; `view` link cannot write
+- [x] `CareLink` model: caregiver, recipient, permission (`view` | `edit`), status (`pending` | `active` | `revoked`)
+- [x] Endpoints: invite by email, accept, decline, revoke (either side can revoke)
+- [x] `can_access_profile(request_user, target_user, write=False)` in one place
+- [x] Tests: owner allowed; stranger denied; pending link denied; revoked link denied; `view` link cannot write
 - **Done when:** the permission tests above all pass. This helper gates every later endpoint, so don't move on until it's solid.
 
 ## V1-3. Medications
-- [ ] `Medication` model: owner, name, dosage, instructions, pills_remaining, refill_threshold, active
-- [ ] CRUD API; reads accept `?profile=<user_id>` and go through the permission helper
-- [ ] Tests: list shows only permitted data; caregiver with `view` can read but not edit
-- [ ] Frontend: medication list and add/edit form
+- [x] `Medication` model: owner, name, dosage, instructions, pills_remaining, refill_threshold, active
+- [x] CRUD API; reads accept `?profile=<user_id>` and go through the permission helper
+- [x] Tests: list shows only permitted data; caregiver with `view` can read but not edit
+- [x] Frontend: medication list and add/edit form
 - **Done when:** user A cannot see or change user B's medications, proven by tests.
 
 ## V1-4. Schedules and dose log
