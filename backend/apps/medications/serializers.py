@@ -1,6 +1,6 @@
-from . import refills, scheduling
 from rest_framework import serializers
 
+from . import refills, scheduling
 from .models import DoseLog, Medication, Schedule
 
 
