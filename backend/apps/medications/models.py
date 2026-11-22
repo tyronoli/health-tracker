@@ -22,6 +22,7 @@ class Medication(models.Model):
         default=0, validators=[MaxValueValidator(MAX_PILLS)]
     )
     active = models.BooleanField(default=True)
+    low_supply_alert_raised_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -80,6 +81,7 @@ class DoseLog(models.Model):
     status = models.CharField(max_length=10, choices=Status.choices)
     logged_at = models.DateTimeField(default=timezone.now)
     note = models.CharField(max_length=500, blank=True)
+    pills_used = models.PositiveSmallIntegerField(default=0)  # what this log deducted
 
     class Meta:
         ordering = ["-scheduled_for", "-id"]
