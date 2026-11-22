@@ -6,6 +6,9 @@
 
 Legend: `[ ]` to do, `[x]` done. Every task ends with a **Done when** line. If you can't tick it, the task isn't finished.
 
+**Suggested order of work:** V1-0 to V1-5 (backend, done), V1-F1 to V1-F4 (frontend), V1-6 then V1-F5, V1-7 then V1-F6, V1-8, V1-9 (optional).
+Backend tasks hold only backend items. Each one points to the frontend task (V1-F) that builds its screens.
+
 ---
 
 # VERSION 1: core tracker (no AI)
@@ -26,67 +29,120 @@ Legend: `[ ]` to do, `[x]` done. Every task ends with a **Done when** line. If y
 - [x] Session auth + CSRF working with a test client
 - [x] Password validation on register
 - [x] Tests: register, wrong password, logout, `me` rejects anonymous users
-- **Done when:** you can register and log in with `curl` or the browser, and anonymous requests to `me` get 401/403.
+- UI for this task: see V1-F1
+- **Done when:** you can register and log in with `curl` or the browser, and anonymous requests to `me` get 401.
 
 ## V1-2. Care links and the permission helper
-- [x] `CareLink` model: caregiver, recipient, permission (`view` | `edit`), status (`pending` | `active` | `revoked`)
-- [x] Endpoints: invite by email, accept, decline, revoke (either side can revoke)
-- [x] `can_access_profile(request_user, target_user, write=False)` in one place
-- [x] Tests: owner allowed; stranger denied; pending link denied; revoked link denied; `view` link cannot write
+- [x] `CareLink` model: caregiver, recipient, permission (`view` | `edit`), status (`pending` | `active` | `declined` | `revoked`), database constraints (no self-link, one open link per pair)
+- [x] Endpoints: invite by email (same response whether or not the account exists), accept (optionally with lower permission), decline, revoke (either side), change permission (recipient), list with filters
+- [x] `GET /api/profiles/` for the profile switcher
+- [x] `can_access_profile`, `get_target_profile` and `check_object_access` in one module
+- [x] Tests: owner allowed; stranger denied; pending, declined and revoked links denied; `view` link cannot write; access is one-directional
+- UI for this task: see V1-F4 (profile switcher in V1-F2)
 - **Done when:** the permission tests above all pass. This helper gates every later endpoint, so don't move on until it's solid.
 
 ## V1-3. Medications
 - [x] `Medication` model: owner, name, dosage, instructions, pills_remaining, refill_threshold, active
-- [x] CRUD API; reads accept `?profile=<user_id>` and go through the permission helper
-- [x] Tests: list shows only permitted data; caregiver with `view` can read but not edit
-- [x] Frontend: medication list and add/edit form
+- [x] CRUD API with soft delete; reads accept `?profile=<user_id>` and go through the permission helper
+- [x] "I refilled" action (`POST /api/medications/{id}/refill/`)
+- [x] Tests: caregiver permission matrix (six link states against list, get, create, patch, delete, refill)
+- UI for this task: see V1-F3
 - **Done when:** user A cannot see or change user B's medications, proven by tests.
 
-## V1-4. Schedules and dose log
-- [ ] `Schedule` model: medication, time_of_day, days_of_week, start_date, end_date, active
-- [ ] Service function: "doses due on date D for user U", correct in the user's timezone, stored in UTC
-- [ ] `DoseLog` model: medication, scheduled_for (UTC), status (`taken` | `skipped` | `missed`), logged_at
-- [ ] Endpoints: today's doses, mark taken, mark skipped, history list
-- [ ] Management command to mark unlogged doses as `missed` after a grace period (60 min default)
-- [ ] Tests: timezone edge cases (late night, different zones), duplicate logging blocked
-- [ ] Frontend: "Today" screen with Taken / Skip buttons; history page
-- **Done when:** the Today screen shows the right doses for your timezone and logging a dose twice is rejected.
+## V1-4a. Schedules
+- [x] `Schedule` model: medication, time_of_day, days_of_week, start_date, end_date, pills_per_dose, active, tracking_started_at
+- [x] Service function: doses due on date D in the owner's timezone (stored in UTC), correct across daylight-saving changes
+- [x] Schedule API nested under medications, with permission matrix tests
+- UI for this task: see V1-F3 (schedule editor)
+- **Done when:** the DST tests pass and every caregiver link state gets the right status code.
+
+## V1-4b. Dose log
+- [x] `DoseLog` model (`taken` | `skipped` | `missed`), unique per schedule and time
+- [x] Endpoints: today's doses, log a dose, correct a log, history with filters
+- [x] Missed-dose job (management command) with a 60-minute grace period; history is frozen before a schedule is edited or deleted
+- [x] Tests: timezone edge cases, duplicate logging blocked (409), late dose after missed, caregiver matrix
+- UI for this task: see V1-F2 (Today) and V1-F4 (history)
+- **Done when:** logging a dose twice is rejected, and Today shows the right pending, missed, taken and skipped doses for the owner's local day.
 
 ## V1-5. Refill tracking
-- [ ] Decrement `pills_remaining` in a service function when a dose is logged `taken` (never go below 0)
-- [ ] "Days of supply left" calculation from the schedule
-- [ ] Low-supply flag when below threshold
-- [ ] Manual "I refilled" action to add pills
-- [ ] Tests: decrement, undo/skip does not decrement, threshold crossing
-- [ ] Frontend: low-supply indicator on the medication list
-- **Done when:** taking doses reduces supply, and the low-supply flag appears exactly once when crossing the threshold.
+- [x] Taking a dose deducts `pills_per_dose` (never below 0); each log remembers `pills_used`
+- [x] Undo and corrections return exactly what was deducted; skipped and missed leave the count alone
+- [x] `days_supply_left` estimate from the schedules in effect
+- [x] Low-supply flag, `GET /api/refills/low-supply/`, and a one-time alert marker (`low_supply_alert_raised_at`) raised on a downward crossing
+- [x] Tests: decrement, undo, never negative, atomic with duplicates, threshold crossing
+- UI for this task: see V1-F3 (low-supply badge)
+- **Done when:** taking doses reduces supply, and the alert marker is raised exactly once per crossing.
+
+---
+
+## V1-F. Frontend (React + Vite + TypeScript + Tailwind PWA)
+
+### V1-F1. Scaffold and authentication
+- [ ] Node 20+ installed in WSL (via nvm); `frontend/` created with Vite, React, TypeScript, Tailwind
+- [ ] Dev proxy: `/api` requests go to Django so cookies and CSRF stay same-origin
+- [ ] API client: JSON, CSRF header, and the standard `{"error": {...}}` shape
+- [ ] AuthContext: load `me`, register, login, logout
+- [ ] Pages: Login and Register; protected routes
+- [ ] Tests (vitest + Testing Library): API client and login form
+- **Done when:** you can register, log in, refresh and stay logged in, and log out.
+
+### V1-F2. Today screen and profile switcher
+- [ ] ProfileContext from `/api/profiles/`, plus a switcher that always shows whose data is on screen
+- [ ] Today: due doses with Taken and Skip buttons, undo, and handling of 403 and 409
+- **Done when:** logging a dose updates the screen, and a view-only caregiver sees no write buttons.
+
+### V1-F3. Medications
+- [ ] List with low-supply badge and "days left", add/edit form, schedule editor, refill button
+- **Done when:** you can set up a medication with schedules entirely from the UI.
+
+### V1-F4. History and care circle
+- [ ] History with filters (date, medication, status)
+- [ ] Care circle page: invite, accept, decline, revoke, change permission
+- **Done when:** two browser sessions can link, share, and revoke access through the UI.
+
+### V1-F5. Appointments UI (after V1-6)
+- [ ] Upcoming list, month calendar, add/edit/delete form
+- **Done when:** appointments show at the right local time for the viewed profile.
+
+### V1-F6. Settings and notifications UI (after V1-7)
+- [ ] Notification settings, push permission and subscription flow, PWA install prompt
+- **Done when:** you can turn email and push on or off and receive a test notification.
+
+---
 
 ## V1-6. Appointments
-- [ ] `Appointment` model: owner, title, provider_name, location, starts_at (UTC), notes
-- [ ] CRUD API through the permission helper
-- [ ] Upcoming list and a calendar (month) view
-- [ ] Tests: permissions, timezone display
+- [ ] `Appointment` model: owner, title, provider_name, location, starts_at (UTC), duration_minutes, notes
+- [ ] CRUD API through the permission helper (`check_object_access` for single objects)
+- [ ] List endpoint with `from`/`to` for the calendar and `upcoming=true`
+- [ ] Tests: caregiver permission matrix, timezone handling, same-404 for missing and forbidden
+- UI for this task: see V1-F5
 - **Done when:** appointments show at the right local time and caregivers see them only with an active link.
 
 ## V1-7. Reminders
 - [ ] Add Redis to `docker-compose.yml`
 - [ ] Celery + django-celery-beat configured; worker and beat run locally
+- [ ] `NotificationSettings` model and endpoints (email on/off, push on/off, appointment lead time, missed-dose grace period); the grace period becomes per-user instead of the global setting
 - [ ] Task: find doses due now (per user timezone) and send an email reminder; idempotent via `reminder_sent_at`
 - [ ] Task: appointment reminder (e.g. 24 hours before)
-- [ ] Task: low-supply email alert (once per crossing)
+- [ ] Task: low-supply email alert, sent when `low_supply_alert_raised_at` is set and not yet emailed
+- [ ] Email: care-link invitation
 - [ ] Task: mark missed doses (replace the management command)
 - [ ] Web Push: service worker, VAPID keys, `PushSubscription` model, subscribe endpoint, `pywebpush` sender
 - [ ] PWA manifest and install flow (note: iPhone push only works when installed to the home screen)
 - [ ] Tests: reminder fires once, not twice, around timezone and daylight-saving changes
+- UI for this task: see V1-F6
 - **Done when:** a dose scheduled 2 minutes from now produces exactly one email and one push notification.
 
 ## V1-8. Hardening
 - [ ] Authorization audit: every endpoint has a test proving another user gets 403/404
-- [ ] Rate limiting on login and invite endpoints
+- [ ] Rate limiting on login, register and invite endpoints
+- [ ] Concurrency: lock rows when care links change state (two simultaneous actions can't both win)
+- [ ] Account features: password change and reset by email, account deletion, data export
 - [ ] Production-style settings: `DEBUG=false`, secure cookies, HTTPS-only, allowed hosts, CSRF trusted origins
-- [ ] Consistent error responses; no stack traces to users
+- [ ] Consistent JSON errors, including unknown `/api/` routes; no stack traces to users
 - [ ] Seed command that creates FAKE demo users and data
 - [ ] Add a visible "tracker only, not medical advice" notice
+- [ ] Docs match the code: generate an OpenAPI schema (e.g. drf-spectacular) and update `API.md` and `architecture.md`
 - [ ] README: how to run, test, and reset everything
 - **Done when:** the audit checklist is complete and a fresh clone runs from the README alone.
 
@@ -99,10 +155,16 @@ Legend: `[ ]` to do, `[x]` done. Every task ends with a **Done when** line. If y
 - **Done when:** you can install the PWA on your phone from the live URL and receive a push reminder. Use fake data only.
 
 ## V1 release checklist
-- [ ] All V1 tasks ticked
-- [ ] `pytest`, `ruff`, `mypy`, frontend lint and tests all green
+- [ ] All V1 tasks ticked, including V1-F1 to V1-F6
+- [ ] `pytest`, `ruff`, `mypy`, frontend lint, `tsc` and frontend tests all green
 - [ ] No secrets in git history
 - [ ] Tag the commit `v1.0`
+
+## Ideas parked for later (not v1)
+- As-needed doses with no schedule (logging an extra dose)
+- Adherence summary endpoint (`/api/doses/adherence/`)
+- Caregiver alert when a dose is missed
+- Fewer queries for list endpoints that compute estimates
 
 ---
 
