@@ -64,3 +64,33 @@ class Schedule(models.Model):
 
     def __str__(self) -> str:
         return f"{self.medication.name} at {self.time_of_day:%H:%M}"
+
+
+class DoseLog(models.Model):
+    class Status(models.TextChoices):
+        TAKEN = "taken", "Taken"
+        SKIPPED = "skipped", "Skipped"
+        MISSED = "missed", "Missed"
+
+    medication = models.ForeignKey(Medication, on_delete=models.CASCADE, related_name="dose_logs")
+    schedule = models.ForeignKey(
+        Schedule, on_delete=models.SET_NULL, null=True, blank=True, related_name="dose_logs"
+    )
+    scheduled_for = models.DateTimeField()  # the exact instant, stored in UTC
+    status = models.CharField(max_length=10, choices=Status.choices)
+    logged_at = models.DateTimeField(default=timezone.now)
+    note = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ["-scheduled_for", "-id"]
+        indexes = [models.Index(fields=["medication", "scheduled_for"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["schedule", "scheduled_for"],
+                condition=Q(schedule__isnull=False),
+                name="dose_log_unique_per_schedule_time",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.medication.name} {self.scheduled_for:%Y-%m-%d %H:%M} {self.status}"

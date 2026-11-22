@@ -45,3 +45,19 @@ def freeze_now(monkeypatch):
         monkeypatch.setattr("apps.medications.scheduling.current_time", lambda: value)
 
     return _freeze
+
+
+@pytest.fixture
+def make_dose_log(db):
+    def _make(schedule, scheduled_for, status="taken", **overrides):
+        from apps.medications.models import DoseLog
+
+        return DoseLog.objects.create(
+            medication=schedule.medication,
+            schedule=schedule,
+            scheduled_for=scheduled_for,
+            status=status,
+            **overrides,
+        )
+
+    return _make

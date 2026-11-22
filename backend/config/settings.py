@@ -62,6 +62,8 @@ CSRF_FAILURE_VIEW = "apps.core.views.csrf_failure"
 
 AUTH_USER_MODEL = "accounts.User"
 
+MISSED_DOSE_GRACE_MINUTES = 60
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

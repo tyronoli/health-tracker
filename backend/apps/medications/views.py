@@ -12,9 +12,16 @@ from rest_framework.serializers import BaseSerializer
 from apps.accounts.models import User
 from apps.care.permissions import check_object_access, get_target_profile
 
-from . import scheduling, services
-from .models import Medication, Schedule
-from .serializers import MedicationSerializer, RefillSerializer, ScheduleSerializer
+from . import doses, scheduling, services
+from .models import DoseLog, Medication, Schedule
+from .serializers import (
+    DoseCreateSerializer,
+    DoseLogSerializer,
+    DoseUpdateSerializer,
+    MedicationSerializer,
+    RefillSerializer,
+    ScheduleSerializer,
+)
 
 
 class MedicationViewSet(viewsets.ModelViewSet):
@@ -100,11 +107,77 @@ class ScheduleViewSet(mixins.UpdateModelMixin, mixins.DestroyModelMixin, viewset
 
     def perform_update(self, serializer: BaseSerializer[Any]) -> None:
         schedule = cast(Schedule, serializer.instance)
+        # Freeze history under the old rules before they change.
+        doses.mark_missed_doses(scheduling.current_time(), owner=schedule.medication.owner)
         data = serializer.validated_data
         retimed = any(f in data and data[f] != getattr(schedule, f) for f in TIMING_FIELDS)
         reactivated = data.get("active") is True and not schedule.active
         if retimed or reactivated:
-            # Doses before this moment must never be auto-marked as missed (see 4b).
             serializer.save(tracking_started_at=scheduling.current_time())
         else:
             serializer.save()
+
+    def perform_destroy(self, instance: Schedule) -> None:
+        doses.mark_missed_doses(scheduling.current_time(), owner=instance.medication.owner)
+        instance.delete()
+
+
+class DoseViewSet(viewsets.GenericViewSet):
+    http_method_names = ["get", "post", "patch", "head", "options"]
+    lookup_value_regex = "[0-9]+"
+
+    def list(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        profile = get_target_profile(user, request.query_params.get("profile"))
+        queryset = doses.history(profile, request.query_params)
+        page = self.paginate_queryset(queryset)
+        return self.get_paginated_response(DoseLogSerializer(page, many=True).data)
+
+    @action(detail=False, methods=["get"])
+    def today(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        profile = get_target_profile(user, request.query_params.get("profile"))
+        return Response(doses.todays_doses(profile, scheduling.current_time()))
+
+    def create(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        serializer = DoseCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        schedule = (
+            Schedule.objects.select_related("medication__owner").filter(pk=data["schedule"]).first()
+        )
+        if schedule is None:
+            raise NotFound()
+        # The owner comes from the schedule itself, never from a request field.
+        check_object_access(user, schedule.medication.owner, write=True)
+
+        log = doses.log_dose(
+            schedule,
+            scheduled_for=data["scheduled_for"],
+            status=data["status"],
+            note=data.get("note", ""),
+            medication_id=data.get("medication"),
+            now=scheduling.current_time(),
+        )
+        return Response(DoseLogSerializer(log).data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request: Request, pk: str | None = None) -> Response:
+        user = cast(User, request.user)
+        log = (
+            DoseLog.objects.select_related("medication__owner").filter(pk=self.kwargs["pk"]).first()
+        )
+        if log is None:
+            raise NotFound()
+        check_object_access(user, log.medication.owner, write=True)
+
+        serializer = DoseUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        log = doses.correct_dose(
+            log,
+            status=serializer.validated_data.get("status"),
+            note=serializer.validated_data.get("note"),
+            now=scheduling.current_time(),
+        )
+        return Response(DoseLogSerializer(log).data)

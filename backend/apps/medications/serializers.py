@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Medication, Schedule
+from .models import DoseLog, Medication, Schedule
 
 
 class MedicationSerializer(serializers.ModelSerializer):
@@ -64,3 +64,26 @@ class ScheduleSerializer(serializers.ModelSerializer):
                 {"end_date": ["End date cannot be before the start date."]}
             )
         return attrs
+
+
+class DoseLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoseLog
+        fields = ["id", "medication", "schedule", "scheduled_for", "status", "logged_at", "note"]
+        read_only_fields = fields
+
+
+EDITABLE_STATUSES = ["taken", "skipped"]  # "missed" is only ever set by the system
+
+
+class DoseCreateSerializer(serializers.Serializer):
+    schedule = serializers.IntegerField()
+    scheduled_for = serializers.DateTimeField()
+    status = serializers.ChoiceField(choices=EDITABLE_STATUSES)
+    note = serializers.CharField(max_length=500, allow_blank=True, required=False, default="")
+    medication = serializers.IntegerField(required=False)
+
+
+class DoseUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=EDITABLE_STATUSES, required=False)
+    note = serializers.CharField(max_length=500, allow_blank=True, required=False)
