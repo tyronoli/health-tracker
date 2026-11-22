@@ -1,3 +1,4 @@
+from . import refills, scheduling
 from rest_framework import serializers
 
 from .models import DoseLog, Medication, Schedule
@@ -5,6 +6,7 @@ from .models import DoseLog, Medication, Schedule
 
 class MedicationSerializer(serializers.ModelSerializer):
     low_supply = serializers.BooleanField(read_only=True)
+    days_supply_left = serializers.SerializerMethodField()
 
     class Meta:
         model = Medication
@@ -18,10 +20,21 @@ class MedicationSerializer(serializers.ModelSerializer):
             "refill_threshold",
             "active",
             "low_supply",
+            "days_supply_left",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "owner", "low_supply", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "owner",
+            "low_supply",
+            "days_supply_left",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_days_supply_left(self, obj: Medication) -> int | None:
+        return refills.days_supply_left(obj, scheduling.current_time())
 
 
 class RefillSerializer(serializers.Serializer):

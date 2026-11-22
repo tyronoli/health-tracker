@@ -10,7 +10,7 @@ from rest_framework.exceptions import ValidationError
 from apps.accounts.models import User
 from apps.core.exceptions import Conflict
 
-from . import scheduling
+from . import refills, scheduling
 from .models import DoseLog, Schedule
 
 MAX_EARLY_LOGGING = timedelta(hours=24)
@@ -54,7 +54,7 @@ def log_dose(
 
     try:
         with transaction.atomic():
-            return DoseLog.objects.create(
+            log = DoseLog.objects.create(
                 medication=medication,
                 schedule=schedule,
                 scheduled_for=scheduled_for,
@@ -62,17 +62,33 @@ def log_dose(
                 note=note,
                 logged_at=now,
             )
+            # Everything here is one transaction: a duplicate (IntegrityError above)
+            # rolls back before any pills are touched.
+            if status == DoseLog.Status.TAKEN:
+                log.pills_used = refills.take_pills(medication.pk, schedule.pills_per_dose, now)
+                log.save(update_fields=["pills_used"])
+            return log
     except IntegrityError:
         raise Conflict("This dose has already been logged.", code="already_logged") from None
 
 
 def correct_dose(log: DoseLog, *, status: str | None, note: str | None, now: datetime) -> DoseLog:
-    if status is not None and status != log.status:
-        log.status = status
-        log.logged_at = now
-    if note is not None:
-        log.note = note
-    log.save(update_fields=["status", "note", "logged_at"])
+    with transaction.atomic():
+        if status is not None and status != log.status:
+            if log.status == DoseLog.Status.TAKEN:
+                refills.return_pills(
+                    log.medication_id, log.pills_used, now
+                )  # exactly what was deducted
+                log.pills_used = 0
+            if status == DoseLog.Status.TAKEN and log.schedule is not None:
+                log.pills_used = refills.take_pills(
+                    log.medication_id, log.schedule.pills_per_dose, now
+                )
+            log.status = status
+            log.logged_at = now
+        if note is not None:
+            log.note = note
+        log.save(update_fields=["status", "note", "logged_at", "pills_used"])
     return log
 
 

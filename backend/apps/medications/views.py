@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from django.db.models import QuerySet
+from django.db.models import F, QuerySet
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
@@ -8,11 +8,12 @@ from rest_framework.permissions import SAFE_METHODS
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
+from rest_framework.views import APIView
 
 from apps.accounts.models import User
 from apps.care.permissions import check_object_access, get_target_profile
 
-from . import doses, scheduling, services
+from . import doses, refills, scheduling
 from .models import DoseLog, Medication, Schedule
 from .serializers import (
     DoseCreateSerializer,
@@ -35,7 +36,11 @@ class MedicationViewSet(viewsets.ModelViewSet):
             return Medication.objects.none()
         user = cast(User, self.request.user)
         profile = get_target_profile(user, self.request.query_params.get("profile"))
-        queryset = Medication.objects.filter(owner=profile)
+        queryset = (
+            Medication.objects.filter(owner=profile)
+            .select_related("owner")
+            .prefetch_related("schedules")
+        )
 
         active = self.request.query_params.get("active")
         if active is not None:
@@ -46,7 +51,12 @@ class MedicationViewSet(viewsets.ModelViewSet):
 
     def get_object(self) -> Medication:
         user = cast(User, self.request.user)
-        medication = Medication.objects.select_related("owner").filter(pk=self.kwargs["pk"]).first()
+        medication = (
+            Medication.objects.select_related("owner")
+            .prefetch_related("schedules")
+            .filter(pk=self.kwargs["pk"])
+            .first()
+        )
         if medication is None:
             raise NotFound()  # same answer as "exists but isn't yours"
         write = self.request.method not in SAFE_METHODS
@@ -66,12 +76,28 @@ class MedicationViewSet(viewsets.ModelViewSet):
         instance.active = False  # soft delete: keep the history
         instance.save(update_fields=["active", "updated_at"])
 
+    def perform_update(self, serializer: BaseSerializer[Any]) -> None:
+        medication = cast(Medication, serializer.instance)
+        data = serializer.validated_data
+        pills = data.get("pills_remaining", medication.pills_remaining)
+        threshold = data.get("refill_threshold", medication.refill_threshold)
+        serializer.save(
+            low_supply_alert_raised_at=refills.next_alert_state(
+                was_low=medication.low_supply,
+                is_low=pills <= threshold,
+                current=medication.low_supply_alert_raised_at,
+                now=scheduling.current_time(),
+            )
+        )
+
     @action(detail=True, methods=["post"])
     def refill(self, request: Request, pk: str | None = None) -> Response:
-        medication = self.get_object()  # POST counts as a write
+        medication = self.get_object()
         serializer = RefillSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        medication = services.refill(medication, serializer.validated_data["pills_added"])
+        medication = refills.refill(
+            medication, serializer.validated_data["pills_added"], scheduling.current_time()
+        )
         return Response(MedicationSerializer(medication).data)
 
     @action(detail=True, methods=["get", "post"], url_path="schedules")
@@ -181,3 +207,18 @@ class DoseViewSet(viewsets.GenericViewSet):
             now=scheduling.current_time(),
         )
         return Response(DoseLogSerializer(log).data)
+
+
+class LowSupplyView(APIView):
+    def get(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        profile = get_target_profile(user, request.query_params.get("profile"))
+        medications = (
+            Medication.objects.filter(
+                owner=profile, active=True, pills_remaining__lte=F("refill_threshold")
+            )
+            .select_related("owner")
+            .prefetch_related("schedules")
+            .order_by("pills_remaining", "name", "id")
+        )
+        return Response(MedicationSerializer(medications, many=True).data)
