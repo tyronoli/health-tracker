@@ -127,6 +127,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+if DEBUG:
+    # The Vite dev server (port 5173) proxies /api to Django.
+    CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
