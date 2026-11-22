@@ -1,6 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 
+from apps.core.testing import matrix, prepare
 from apps.medications.models import Medication
 
 pytestmark = pytest.mark.django_db
@@ -232,29 +233,6 @@ def test_stranger_gets_identical_404_for_real_and_missing_medications(
     missing = api.get(f"{URL}999999/")
     assert real.status_code == missing.status_code == 404
     assert real.json() == missing.json()
-
-
-# ---------- the caregiver matrix (alex cares for mum) ----------
-
-LINK_STATES = {
-    "no_link": None,
-    "pending": ("pending", "edit"),
-    "declined": ("declined", "edit"),
-    "revoked": ("revoked", "edit"),
-    "active_view": ("active", "view"),
-    "active_edit": ("active", "edit"),
-}
-STATE_IDS = list(LINK_STATES)
-
-
-def prepare(make_link, alex, mum, state):
-    link = LINK_STATES[state]
-    if link:
-        make_link(alex, mum, status=link[0], permission=link[1])
-
-
-def matrix(*codes):
-    return list(zip(STATE_IDS, codes, strict=True))
 
 
 @pytest.mark.parametrize("state,expected", matrix(403, 403, 403, 403, 200, 200))

@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
     "rest_framework",
     "apps.accounts",
     "apps.core",
@@ -60,6 +61,8 @@ REST_FRAMEWORK = {
 CSRF_FAILURE_VIEW = "apps.core.views.csrf_failure"
 
 AUTH_USER_MODEL = "accounts.User"
+
+MISSED_DOSE_GRACE_MINUTES = 60
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

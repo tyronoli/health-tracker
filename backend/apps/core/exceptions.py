@@ -5,12 +5,6 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
 
-class InvalidCredentials(exceptions.APIException):
-    status_code = 400
-    default_detail = "Invalid email or password."
-    default_code = "invalid_credentials"
-
-
 def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response | None:
     response = exception_handler(exc, context)
     if response is None:
@@ -39,3 +33,15 @@ def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response |
 
     response.data = {"error": error}
     return response
+
+
+class InvalidCredentials(exceptions.APIException):
+    status_code = 400
+    default_detail = "Invalid email or password."
+    default_code = "invalid_credentials"
+
+
+class Conflict(exceptions.APIException):
+    status_code = 409
+    default_detail = "The request conflicts with the current state."
+    default_code = "conflict"
