@@ -4,6 +4,7 @@ import RequireAuth from './components/RequireAuth'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import AppearancePage from './pages/AppearancePage'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
+          <Route path="settings/appearance" element={<AppearancePage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

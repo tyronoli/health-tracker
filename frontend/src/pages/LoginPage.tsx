@@ -4,6 +4,7 @@ import { fieldError, toApiError, type ApiError } from '../api/client'
 import AuthCard from '../components/AuthCard'
 import FormError from '../components/FormError'
 import TextField from '../components/TextField'
+import Button from '../components/Button'
 import { useAuth } from '../context/auth-context'
 
 export default function LoginPage() {
@@ -53,13 +54,9 @@ export default function LoginPage() {
           onChange={setPassword}
           error={fieldError(error, 'password')}
         />
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={submitting} className="w-full">
           Log in
-        </button>
+        </Button>
       </form>
       <p className="mt-4 text-sm text-slate-600">
         No account yet?{' '}

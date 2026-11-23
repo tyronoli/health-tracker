@@ -22,7 +22,7 @@ export default function TextField({
   const id = useId()
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+      <label htmlFor={id} className="block text-sm font-medium text-ink">
         {label}
       </label>
       <input
@@ -32,10 +32,10 @@ export default function TextField({
         autoComplete={autoComplete}
         required={required}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        className="mt-1 w-full rounded-xl border border-line-strong bg-surface px-3 py-2.5 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
       />
       {error && (
-        <p role="alert" className="mt-1 text-sm text-red-600">
+        <p role="alert" className="mt-1 text-sm text-missed-ink">
           {error}
         </p>
       )}
