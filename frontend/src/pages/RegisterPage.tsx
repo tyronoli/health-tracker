@@ -4,6 +4,7 @@ import { fieldError, toApiError, type ApiError } from '../api/client'
 import AuthCard from '../components/AuthCard'
 import FormError from '../components/FormError'
 import TextField from '../components/TextField'
+import Button from '../components/Button'
 import { useAuth } from '../context/auth-context'
 
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -64,14 +65,14 @@ export default function RegisterPage() {
           error={fieldError(error, 'password')}
         />
         <div>
-          <label htmlFor="timezone" className="block text-sm font-medium text-slate-700">
+          <label htmlFor="timezone" className="block text-sm font-medium text-ink">
             Timezone
           </label>
           <select
             id="timezone"
             value={timezone}
             onChange={(event) => setTimezone(event.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-xl border border-line-strong bg-surface px-3 py-2.5 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
           >
             {zones.map((zone) => (
               <option key={zone} value={zone}>
@@ -80,18 +81,14 @@ export default function RegisterPage() {
             ))}
           </select>
           {timezoneProblem && (
-            <p role="alert" className="mt-1 text-sm text-red-600">
+            <p role="alert" className="mt-1 text-sm text-missed-ink">
               {timezoneProblem}
             </p>
           )}
         </div>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={submitting} className="w-full">
           Create account
-        </button>
+        </Button>
       </form>
       <p className="mt-4 text-sm text-slate-600">
         Already registered?{' '}
