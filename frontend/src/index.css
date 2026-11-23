@@ -1,1 +1,128 @@
 @import "tailwindcss";
+
+/* Design tokens. Light mode and the Pine accent are the defaults.
+   Dark mode and the other accents only override values below, so no component
+   needs dark: or per-accent classes. "static" makes Tailwind always emit the
+   variables so the overrides have something to override. */
+@theme static {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+
+  --color-paper: #F6F4EE;
+  --color-surface: #FFFFFF;
+  --color-nav: #FFFFFF;
+  --color-line: #E4E0D6;
+  --color-line-strong: #CFCABD;
+  --color-ink: #1B2A26;
+  --color-muted: #55635F;
+
+  --color-accent: #0F5C4D;
+  --color-on-accent: #FFFFFF;
+  --color-accent-soft: #DDEFE8;
+  --color-accent-ink: #0F5C4D;
+  --color-hero: #0F5C4D;
+  --color-on-hero: #FFFFFF;
+
+  --color-taken-bg: #DDEFE8;
+  --color-taken-ink: #0F5C4D;
+  --color-missed-bg: #FCE9DA;
+  --color-missed-ink: #9A3F00;
+  --color-low-bg: #FFF1CC;
+  --color-low-ink: #7A4B00;
+  --color-skipped-bg: #E8ECEF;
+  --color-skipped-ink: #3F4B57;
+  --color-info-bg: #E3ECF8;
+  --color-info-ink: #1F4E8C;
+}
+
+[data-theme="dark"] {
+  --color-paper: #0F1715;
+  --color-surface: #17221F;
+  --color-nav: #131D1A;
+  --color-line: #2A3A36;
+  --color-line-strong: #3A4D47;
+  --color-ink: #E8EFEC;
+  --color-muted: #9FB1AB;
+
+  --color-accent: #4FC3A1;
+  --color-on-accent: #07231C;
+  --color-accent-soft: #17372F;
+  --color-accent-ink: #7FE0C0;
+  --color-hero: #145A4B;
+
+  --color-taken-bg: #17372F;
+  --color-taken-ink: #7FE0C0;
+  --color-missed-bg: #3A2418;
+  --color-missed-ink: #FFB27A;
+  --color-low-bg: #3A3010;
+  --color-low-ink: #F2CC6B;
+  --color-skipped-bg: #26313A;
+  --color-skipped-ink: #B9C6D0;
+  --color-info-bg: #1B2B44;
+  --color-info-ink: #9CC0F2;
+}
+
+/* Accents, light mode. Pine is the default, so it needs no block. */
+[data-accent="indigo"] {
+  --color-accent: #3F4FA3;
+  --color-on-accent: #FFFFFF;
+  --color-accent-soft: #E4E7F6;
+  --color-accent-ink: #3F4FA3;
+  --color-hero: #3F4FA3;
+}
+
+[data-accent="plum"] {
+  --color-accent: #7A3B69;
+  --color-on-accent: #FFFFFF;
+  --color-accent-soft: #F3E4EF;
+  --color-accent-ink: #7A3B69;
+  --color-hero: #7A3B69;
+}
+
+[data-accent="slate"] {
+  --color-accent: #3F4B57;
+  --color-on-accent: #FFFFFF;
+  --color-accent-soft: #E8ECEF;
+  --color-accent-ink: #3F4B57;
+  --color-hero: #3F4B57;
+}
+
+/* Accents, dark mode. These come last and are more specific, so they win. */
+[data-theme="dark"][data-accent="indigo"] {
+  --color-accent: #9AA6F5;
+  --color-on-accent: #0E1236;
+  --color-accent-soft: #232A55;
+  --color-accent-ink: #B8C1FA;
+  --color-hero: #343F8C;
+}
+
+[data-theme="dark"][data-accent="plum"] {
+  --color-accent: #E39BCB;
+  --color-on-accent: #2A0F24;
+  --color-accent-soft: #3A1F34;
+  --color-accent-ink: #F2B8DE;
+  --color-hero: #6B2F5C;
+}
+
+[data-theme="dark"][data-accent="slate"] {
+  --color-accent: #AEBBC7;
+  --color-on-accent: #10181F;
+  --color-accent-soft: #26313A;
+  --color-accent-ink: #C7D2DB;
+  --color-hero: #3A4651;
+}
+
+html {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
