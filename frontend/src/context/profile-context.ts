@@ -6,6 +6,7 @@ export type ProfileContextValue = {
   selected: Profile
   select: (id: number) => void
   canWrite: boolean
+  canWriteTo: (userId: number) => boolean
 }
 
 export const ProfileContext = createContext<ProfileContextValue | null>(null)

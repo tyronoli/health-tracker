@@ -61,6 +61,8 @@ const PAIRS: [string, string, number][] = [
   ['muted', 'paper', 4.5],
   ['muted', 'surface', 4.5],
   ['muted', 'nav', 4.5],
+  ['low-ink', 'skipped-bg', 3],
+  ['accent', 'skipped-bg', 3], 
   ['accent-ink', 'paper', 4.5],
   ['accent-ink', 'surface', 4.5],
   ['accent-ink', 'accent-soft', 4.5],

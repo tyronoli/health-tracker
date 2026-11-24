@@ -33,3 +33,13 @@ export function describeDue(scheduledMs: number, nowMs: number): string {
   if (minutes >= -1) return 'due now'
   return `was due ${duration(-minutes)} ago`
 }
+
+/** "2026-11-17" -> "17 Nov 2026" */
+export function formatShortDate(date: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${date}T00:00:00Z`))
+}

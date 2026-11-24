@@ -7,11 +7,11 @@ import Button from '../components/Button'
 import DoseCard from '../components/DoseCard'
 import ProfileSwitcher from '../components/ProfileSwitcher'
 import ProgressRing from '../components/ProgressRing'
-import StatusTag from '../components/StatusTag'
 import { useProfiles } from '../context/profile-context'
 import { useNow } from '../hooks/useNow'
 import { useSetDoseStatus } from '../hooks/useSetDoseStatus'
 import { formatLongDate, formatTime } from '../lib/format'
+import ProfileNote from '../components/ProfileNote'
 
 function describeError(error: unknown): string {
   const problem = toApiError(error)
@@ -73,16 +73,7 @@ function TodayContent() {
 
       <ProfileSwitcher />
 
-      {selected.relationship !== 'self' && (
-        <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
-          Viewing {selected.display_name}'s day
-          {canWrite ? (
-            <StatusTag status="taken">Can edit</StatusTag>
-          ) : (
-            <StatusTag status="skipped">View only</StatusTag>
-          )}
-        </p>
-      )}
+      <ProfileNote noun="day" />
 
       {setStatus.isError && (
         <p role="alert" className="rounded-xl bg-missed-bg px-3 py-2 text-sm text-missed-ink">
