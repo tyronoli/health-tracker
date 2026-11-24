@@ -1,6 +1,8 @@
 import { Link, Outlet } from 'react-router'
+import { ProfileProvider } from '../context/ProfileProvider'
 import { useAuth } from '../context/auth-context'
 import Button from './Button'
+import TabBar from './TabBar'
 
 export default function AppLayout() {
   const { user, logout } = useAuth()
@@ -25,9 +27,12 @@ export default function AppLayout() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl px-4 py-6">
-        <Outlet />
+      <main className="mx-auto max-w-3xl px-4 pb-28 pt-6">
+        <ProfileProvider>
+          <Outlet />
+        </ProfileProvider>
       </main>
+      <TabBar />
     </div>
   )
 }
