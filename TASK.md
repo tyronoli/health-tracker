@@ -78,17 +78,17 @@ Backend tasks hold only backend items. Each one points to the frontend task (V1-
 ## V1-F. Frontend (React + Vite + TypeScript + Tailwind PWA)
 
 ### V1-F1. Scaffold and authentication
-- [ ] Node 20+ installed in WSL (via nvm); `frontend/` created with Vite, React, TypeScript, Tailwind
-- [ ] Dev proxy: `/api` requests go to Django so cookies and CSRF stay same-origin
-- [ ] API client: JSON, CSRF header, and the standard `{"error": {...}}` shape
-- [ ] AuthContext: load `me`, register, login, logout
-- [ ] Pages: Login and Register; protected routes
-- [ ] Tests (vitest + Testing Library): API client and login form
+- [x] Node 20+ installed in WSL (via nvm); `frontend/` created with Vite, React, TypeScript, Tailwind
+- [x] Dev proxy: `/api` requests go to Django so cookies and CSRF stay same-origin
+- [x] API client: JSON, CSRF header, and the standard `{"error": {...}}` shape
+- [x] AuthContext: load `me`, register, login, logout
+- [x] Pages: Login and Register; protected routes
+- [x] Tests (vitest + Testing Library): API client and login form
 - **Done when:** you can register, log in, refresh and stay logged in, and log out.
 
 ### V1-F2. Today screen and profile switcher
-- [ ] ProfileContext from `/api/profiles/`, plus a switcher that always shows whose data is on screen
-- [ ] Today: due doses with Taken and Skip buttons, undo, and handling of 403 and 409
+- [x] ProfileContext from `/api/profiles/`, plus a switcher that always shows whose data is on screen
+- [x] Today: due doses with Taken and Skip buttons, undo, and handling of 403 and 409
 - **Done when:** logging a dose updates the screen, and a view-only caregiver sees no write buttons.
 
 ### V1-F3. Medications
