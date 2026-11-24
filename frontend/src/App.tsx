@@ -6,6 +6,9 @@ import ComingSoonPage from './pages/ComingSoonPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import TodayPage from './pages/TodayPage'
+import MedicationDetailPage from './pages/MedicationDetailPage'
+import NewMedicationPage from './pages/NewMedicationPage'
+import MedicationsPage from './pages/MedicationsPage'
 
 export default function App() {
   return (
@@ -15,7 +18,9 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<TodayPage />} />
-          <Route path="medications" element={<ComingSoonPage title="Medications" />} />
+          <Route path="medications" element={<MedicationsPage />} />
+          <Route path="medications/new" element={<NewMedicationPage />} />
+          <Route path="medications/:id" element={<MedicationDetailPage />} />
           <Route path="appointments" element={<ComingSoonPage title="Appointments" />} />
           <Route path="history" element={<ComingSoonPage title="History" />} />
           <Route path="care" element={<ComingSoonPage title="Care circle" />} />

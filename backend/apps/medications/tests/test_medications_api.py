@@ -299,3 +299,21 @@ def test_access_is_one_directional(client_for, make_link, make_medication, alex,
     med = make_medication(alex)
     assert client_for(mum).get(detail(med)).status_code == 404
     assert client_for(mum).get(URL, {"profile": alex.id}).status_code == 403
+
+
+def test_medications_include_their_schedules(client_for, make_medication, make_schedule, alex):
+    from datetime import time
+
+    med = make_medication(alex)
+    make_schedule(med, time_of_day=time(20, 0))
+    make_schedule(med, time_of_day=time(8, 0), active=False)
+    api = client_for(alex)
+
+    detail_body = api.get(detail(med)).json()
+    listed = api.get(URL).json()["results"][0]
+
+    for body in (detail_body, listed):
+        assert [(s["time_of_day"], s["active"]) for s in body["schedules"]] == [
+            ("08:00", False),
+            ("20:00", True),
+        ]

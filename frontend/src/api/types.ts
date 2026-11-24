@@ -32,3 +32,49 @@ export type TodayDose = {
 }
 
 export type TodayResponse = { date: string; timezone: string; doses: TodayDose[] }
+
+export type Schedule = {
+  id: number
+  medication: number
+  time_of_day: string
+  days_of_week: number[]
+  start_date: string
+  end_date: string | null
+  pills_per_dose: number
+  active: boolean
+}
+
+export type Medication = {
+  id: number
+  owner: number
+  name: string
+  dosage: string
+  instructions: string
+  pills_remaining: number
+  refill_threshold: number
+  active: boolean
+  low_supply: boolean
+  days_supply_left: number | null
+  schedules: Schedule[]
+  created_at: string
+  updated_at: string
+}
+
+export type MedicationInput = {
+  name: string
+  dosage: string
+  instructions: string
+  pills_remaining: number
+  refill_threshold: number
+}
+
+export type ScheduleInput = {
+  time_of_day: string
+  days_of_week: number[]
+  start_date: string
+  end_date: string | null
+  pills_per_dose: number
+  active: boolean
+}
+
+export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] }

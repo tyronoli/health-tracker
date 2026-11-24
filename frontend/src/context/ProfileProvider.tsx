@@ -42,6 +42,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             selected,
             select,
             canWrite: selected.relationship === 'self' || selected.permission === 'edit',
+            canWriteTo: (userId: number) => {
+              const profile = profiles.find((p) => p.user_id === userId)
+              return !!profile && (profile.relationship === 'self' || profile.permission === 'edit')
+            },
           }
         : null,
     [profiles, selected, select],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeDue, formatLongDate, formatTime } from './format'
+import { describeDue, formatLongDate, formatTime, formatShortDate } from './format'
 
 describe('formatTime', () => {
   it('shows the time in the given timezone', () => {
@@ -40,5 +40,11 @@ describe('describeDue', () => {
     [-90, 'was due 1 h 30 min ago'],
   ])('%i minutes away is "%s"', (minutes, expected) => {
     expect(describeDue(at(minutes), now)).toBe(expected)
+  })
+})
+
+describe('formatShortDate', () => {
+  it('writes day, short month and year', () => {
+    expect(formatShortDate('2026-11-17')).toBe('17 Nov 2026')
   })
 })
