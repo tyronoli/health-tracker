@@ -128,6 +128,7 @@ def todays_doses(owner: User, now: datetime) -> dict[str, Any]:
                 "scheduled_for": d.scheduled_for,
                 "status": status,
                 "dose_log_id": log.pk if log else None,
+                "logged_at": log.logged_at if log else None,
                 "pills_per_dose": d.schedule.pills_per_dose,
             }
         )

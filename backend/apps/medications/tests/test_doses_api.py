@@ -111,6 +111,20 @@ def test_today_follows_the_owners_timezone(
     assert body["doses"][0]["scheduled_for"] == "2026-11-18T00:00:00Z"
 
 
+def test_today_says_when_a_dose_was_logged(
+    client_for, make_medication, make_schedule, make_dose_log, alex
+):
+    med = make_medication(alex)
+    taken = make_schedule(med, time_of_day=time(8, 0))
+    make_schedule(med, time_of_day=time(14, 0))
+    make_dose_log(taken, EIGHT, "taken", logged_at=utc(2026, 11, 17, 8, 3))
+
+    doses = client_for(alex).get(TODAY).json()["doses"]
+
+    assert doses[0]["logged_at"] == "2026-11-17T08:03:00Z"
+    assert doses[1]["logged_at"] is None
+
+
 # ---------- log a dose ----------
 
 
