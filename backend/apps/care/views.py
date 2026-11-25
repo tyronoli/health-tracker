@@ -104,6 +104,7 @@ class ProfileListView(APIView):
                 "display_name": user.display_name or user.email,
                 "relationship": "self",
                 "permission": "edit",
+                "timezone": user.timezone,
             }
         ]
         links = (
@@ -117,6 +118,7 @@ class ProfileListView(APIView):
                 "display_name": link.recipient.display_name or link.recipient.email,
                 "relationship": "recipient",
                 "permission": link.permission,
+                "timezone": link.recipient.timezone,
             }
             for link in links
         ]

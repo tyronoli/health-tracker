@@ -43,3 +43,13 @@ export function formatShortDate(date: string): string {
     timeZone: 'UTC',
   }).format(new Date(`${date}T00:00:00Z`))
 }
+
+/** The calendar date of an instant in the given timezone, as YYYY-MM-DD. */
+export function localDate(iso: string, timeZone: string): string {
+  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' }
+  try {
+    return new Intl.DateTimeFormat('en-CA', { ...options, timeZone }).format(new Date(iso))
+  } catch {
+    return new Intl.DateTimeFormat('en-CA', { ...options, timeZone: 'UTC' }).format(new Date(iso))
+  }
+}

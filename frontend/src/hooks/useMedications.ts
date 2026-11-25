@@ -3,7 +3,7 @@ import { getMedication, listMedications } from '../api/medications'
 
 export const medicationKeys = {
   all: ['medications'] as const,
-  list: (profileId: number, active: boolean) => ['medications', 'list', profileId, active] as const,
+  list: (profileId: number, active?: boolean) => ['medications', 'list', profileId, active ?? 'all'] as const,
   detail: (id: number) => ['medications', 'detail', id] as const,
 }
 
@@ -15,7 +15,7 @@ export function invalidateMedicationData(queryClient: QueryClient) {
   ])
 }
 
-export function useMedications(profileId: number, active: boolean) {
+export function useMedications(profileId: number, active?: boolean) {
   return useQuery({
     queryKey: medicationKeys.list(profileId, active),
     queryFn: () => listMedications(profileId, active),

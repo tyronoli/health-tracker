@@ -17,6 +17,7 @@ export type Profile = {
   display_name: string
   relationship: 'self' | 'recipient'
   permission: 'view' | 'edit'
+  timezone: string
 }
 
 export type DoseStatus = 'pending' | 'taken' | 'skipped' | 'missed'
@@ -78,3 +79,29 @@ export type ScheduleInput = {
 }
 
 export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] }
+
+export type Permission = 'view' | 'edit'
+
+export type DoseLogStatus = 'taken' | 'skipped' | 'missed'
+
+export type DoseLogEntry = {
+  id: number
+  medication: number
+  schedule: number | null
+  scheduled_for: string
+  status: DoseLogStatus
+  logged_at: string
+  note: string
+}
+
+export type PersonSummary = { id: number; display_name: string; email: string }
+
+export type CareLink = {
+  id: number
+  caregiver: PersonSummary
+  recipient: PersonSummary
+  permission: Permission
+  status: 'pending' | 'active' | 'declined' | 'revoked'
+  created_at: string
+  responded_at: string | null
+}

@@ -15,6 +15,7 @@ export function useSetDoseStatus(profileId: number) {
     onSettled: (_data, error) => {
       void queryClient.invalidateQueries({ queryKey: ['today', profileId] })
       void queryClient.invalidateQueries({ queryKey: ['medications'] }) // pill counts change
+      void queryClient.invalidateQueries({ queryKey: ['doses'] })
       if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
         void queryClient.invalidateQueries({ queryKey: ['profiles'] }) // access may have changed
       }

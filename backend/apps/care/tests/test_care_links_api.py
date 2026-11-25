@@ -283,3 +283,16 @@ def test_profiles_lists_self_and_active_recipients_only(
 
 def test_profiles_requires_login():
     assert APIClient().get(PROFILES).status_code == 401
+
+
+def test_profiles_include_each_persons_timezone(client_for, make_link, make_user):
+    caregiver = make_user("tz-caregiver@example.com", timezone="Asia/Manila")
+    recipient = make_user("tz-recipient@example.com", timezone="Europe/London")
+    make_link(caregiver, recipient, status="active")
+
+    body = client_for(caregiver).get(PROFILES).json()
+
+    assert [(p["relationship"], p["timezone"]) for p in body] == [
+        ("self", "Asia/Manila"),
+        ("recipient", "Europe/London"),
+    ]

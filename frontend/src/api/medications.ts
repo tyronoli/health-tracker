@@ -1,7 +1,7 @@
 import { api } from './client'
 import type { Medication, MedicationInput, Page, Schedule, ScheduleInput } from './types'
 
-export const listMedications = (profileId: number, active: boolean) =>
+export const listMedications = (profileId: number, active?: boolean) =>
   api<Page<Medication>>('/api/medications/', { query: { profile: profileId, active, page_size: 100 } })
 
 export const getMedication = (id: number) => api<Medication>(`/api/medications/${id}/`)

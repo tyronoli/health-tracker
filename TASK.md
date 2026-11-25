@@ -92,12 +92,12 @@ Backend tasks hold only backend items. Each one points to the frontend task (V1-
 - **Done when:** logging a dose updates the screen, and a view-only caregiver sees no write buttons.
 
 ### V1-F3. Medications
-- [ ] List with low-supply badge and "days left", add/edit form, schedule editor, refill button
+- [x] List with low-supply badge and "days left", add/edit form, schedule editor, refill button
 - **Done when:** you can set up a medication with schedules entirely from the UI.
 
 ### V1-F4. History and care circle
-- [ ] History with filters (date, medication, status)
-- [ ] Care circle page: invite, accept, decline, revoke, change permission
+- [x] History with filters (date, medication, status)
+- [x] Care circle page: invite, accept, decline, revoke, change permission
 - **Done when:** two browser sessions can link, share, and revoke access through the UI.
 
 ### V1-F5. Appointments UI (after V1-6)
