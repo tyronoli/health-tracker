@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.core.timeutils import owner_zone
 
 from .models import Schedule
 
@@ -16,13 +17,6 @@ def current_time() -> datetime:
     Always call it as `scheduling.current_time()` so the replacement takes effect.
     """
     return timezone.now()
-
-
-def owner_zone(owner: User) -> ZoneInfo:
-    try:
-        return ZoneInfo(owner.timezone)
-    except (ZoneInfoNotFoundError, ValueError):
-        return ZoneInfo("UTC")  # timezones are validated on write; this is a safety net
 
 
 def local_today(owner: User, now: datetime) -> date:
