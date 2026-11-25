@@ -9,6 +9,8 @@ import TodayPage from './pages/TodayPage'
 import MedicationDetailPage from './pages/MedicationDetailPage'
 import NewMedicationPage from './pages/NewMedicationPage'
 import MedicationsPage from './pages/MedicationsPage'
+import CarePage from './pages/CarePage'
+import HistoryPage from './pages/HistoryPage'
 
 export default function App() {
   return (
@@ -22,8 +24,8 @@ export default function App() {
           <Route path="medications/new" element={<NewMedicationPage />} />
           <Route path="medications/:id" element={<MedicationDetailPage />} />
           <Route path="appointments" element={<ComingSoonPage title="Appointments" />} />
-          <Route path="history" element={<ComingSoonPage title="History" />} />
-          <Route path="care" element={<ComingSoonPage title="Care circle" />} />
+          <Route path="history" element={<HistoryPage />} />
+          <Route path="care" element={<CarePage />} />
           <Route path="settings/appearance" element={<AppearancePage />} />
         </Route>
       </Route>

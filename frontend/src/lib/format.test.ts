@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeDue, formatLongDate, formatTime, formatShortDate } from './format'
+import { describeDue, formatLongDate, formatTime, formatShortDate, localDate } from './format'
 
 describe('formatTime', () => {
   it('shows the time in the given timezone', () => {
@@ -46,5 +46,16 @@ describe('describeDue', () => {
 describe('formatShortDate', () => {
   it('writes day, short month and year', () => {
     expect(formatShortDate('2026-11-17')).toBe('17 Nov 2026')
+  })
+})
+
+describe('localDate', () => {
+  it('gives the date in the given timezone', () => {
+    expect(localDate('2026-11-17T16:00:00Z', 'Asia/Manila')).toBe('2026-11-18')
+    expect(localDate('2026-11-17T16:00:00Z', 'UTC')).toBe('2026-11-17')
+  })
+
+  it('falls back to UTC for an unknown timezone', () => {
+    expect(localDate('2026-11-17T16:00:00Z', 'Nowhere/Land')).toBe('2026-11-17')
   })
 })

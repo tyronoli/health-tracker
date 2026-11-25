@@ -1,5 +1,5 @@
-export const ME = { user_id: 1, display_name: 'Alex', relationship: 'self', permission: 'edit' }
-export const MUM_VIEW = { user_id: 2, display_name: 'Mum', relationship: 'recipient', permission: 'view' }
+export const ME = { user_id: 1, display_name: 'Alex', relationship: 'self', permission: 'edit', timezone: 'Asia/Manila' }
+export const MUM_VIEW = { user_id: 2, display_name: 'Mum', relationship: 'recipient', permission: 'view', timezone: 'Asia/Manila' }
 export const MUM_EDIT = { ...MUM_VIEW, permission: 'edit' }
 
 export function schedule(overrides: Record<string, unknown> = {}) {
