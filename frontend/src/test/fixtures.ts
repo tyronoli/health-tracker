@@ -36,3 +36,22 @@ export function medication(overrides: Record<string, unknown> = {}) {
 }
 
 export const page = (results: unknown[]) => ({ count: results.length, next: null, previous: null, results })
+
+export function appointment(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 5,
+    owner: 1,
+    title: 'Chest X-ray',
+    type: 'imaging',
+    provider_name: "St. Luke's Imaging",
+    location: 'Level 2',
+    starts_at: '2026-11-26T01:30:00Z',
+    duration_minutes: 30,
+    preparation: 'Wear loose clothing',
+    notes: 'Bring the referral',
+    status: 'scheduled',
+    created_at: '2026-11-01T02:00:00Z',
+    updated_at: '2026-11-17T01:30:00Z',
+    ...overrides,
+  }
+}

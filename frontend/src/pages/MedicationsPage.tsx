@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router'
 import MedicationCard from '../components/MedicationCard'
 import ProfileNote from '../components/ProfileNote'
 import ProfileSwitcher from '../components/ProfileSwitcher'
@@ -7,6 +6,7 @@ import QueryError from '../components/QueryError'
 import { useProfiles } from '../context/profile-context'
 import { useMedications } from '../hooks/useMedications'
 import FilterChip from '../components/FilterChip'
+import FloatingAddLink from '../components/FloatingAddLink'
 
 export default function MedicationsPage() {
   const { selected, canWrite } = useProfiles()
@@ -55,21 +55,7 @@ export default function MedicationsPage() {
           </ul>
         ))}
 
-      {canWrite && !showStopped && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-10">
-          <div className="mx-auto flex max-w-3xl justify-end px-4">
-            <Link
-              to="/medications/new"
-              className="pointer-events-auto inline-flex min-h-12 items-center gap-2 rounded-xl border border-accent bg-accent px-4 font-semibold text-on-accent shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current stroke-[3]">
-                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-              </svg>
-              Add medication
-            </Link>
-          </div>
-        </div>
-      )}
+            {canWrite && !showStopped && <FloatingAddLink to="/medications/new" label="Add medication" />}
     </div>
   )
 }
