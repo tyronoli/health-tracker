@@ -101,7 +101,7 @@ Backend tasks hold only backend items. Each one points to the frontend task (V1-
 - **Done when:** two browser sessions can link, share, and revoke access through the UI.
 
 ### V1-F5. Appointments UI (after V1-6)
-- [ ] Upcoming list, month calendar, add/edit/delete form
+- [x] Upcoming list, month calendar, add/edit/delete form
 - **Done when:** appointments show at the right local time for the viewed profile.
 
 ### V1-F6. Settings and notifications UI (after V1-7)

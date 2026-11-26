@@ -105,3 +105,34 @@ export type CareLink = {
   created_at: string
   responded_at: string | null
 }
+
+export type AppointmentType = 'checkup' | 'consultation' | 'imaging' | 'lab_test' | 'procedure' | 'other'
+export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled'
+
+export type Appointment = {
+  id: number
+  owner: number
+  title: string
+  type: AppointmentType
+  provider_name: string
+  location: string
+  starts_at: string
+  duration_minutes: number | null
+  preparation: string
+  notes: string
+  status: AppointmentStatus
+  created_at: string
+  updated_at: string
+}
+
+export type AppointmentInput = {
+  title: string
+  type: AppointmentType
+  provider_name: string
+  location: string
+  starts_at: string
+  duration_minutes: number | null
+  preparation: string
+  notes: string
+  status?: AppointmentStatus
+}
