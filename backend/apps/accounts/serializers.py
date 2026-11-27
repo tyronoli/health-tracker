@@ -9,7 +9,7 @@ from rest_framework import serializers
 
 from apps.core.exceptions import InvalidCredentials
 
-from .models import User
+from .models import NotificationSettings, User
 
 
 @lru_cache(maxsize=1)
@@ -79,3 +79,13 @@ class LoginSerializer(serializers.Serializer):
             raise InvalidCredentials()
         attrs["user"] = user
         return attrs
+
+class NotificationSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationSettings
+        fields = [
+            "email_enabled",
+            "push_enabled",
+            "appointment_reminder_minutes",
+            "missed_dose_grace_minutes",
+        ]

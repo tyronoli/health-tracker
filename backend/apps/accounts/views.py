@@ -1,3 +1,5 @@
+from ctypes import cast
+
 from django.contrib.auth import login, logout
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
@@ -8,8 +10,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import User
-from .serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from .models import NotificationSettings, User
+from .serializers import LoginSerializer, NotificationSettingsSerializer, RegisterSerializer, UserSerializer
 
 BACKEND = "django.contrib.auth.backends.ModelBackend"
 
@@ -63,3 +65,11 @@ class MeView(RetrieveUpdateAPIView):
 
     def get_object(self) -> User:
         return self.request.user  # type: ignore[return-value]
+
+class NotificationSettingsView(RetrieveUpdateAPIView):
+    serializer_class = NotificationSettingsSerializer
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def get_object(self) -> NotificationSettings:
+        prefs, _ = NotificationSettings.objects.get_or_create(user=cast(User, self.request.user))
+        return prefs

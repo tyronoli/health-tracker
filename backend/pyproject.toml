@@ -15,3 +15,7 @@ exclude = ["migrations/"]
 
 [tool.django-stubs]
 django_settings_module = "config.settings"
+
+[[tool.mypy.overrides]]
+module = ["celery.*", "django_celery_beat.*"]
+ignore_missing_imports = true
