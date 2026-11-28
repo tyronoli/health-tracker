@@ -105,24 +105,24 @@ Backend tasks hold only backend items. Each one points to the frontend task (V1-
 - **Done when:** appointments show at the right local time for the viewed profile.
 
 ### V1-F6. Settings and notifications UI (after V1-7)
-- [ ] Notification settings, push permission and subscription flow, PWA install prompt
+- [x] Notification settings, push permission and subscription flow, PWA install prompt
 - **Done when:** you can turn email and push on or off and receive a test notification.
 
 ---
 
 ## V1-6. Appointments
-- [ ] `Appointment` model: owner, title, provider_name, location, starts_at (UTC), duration_minutes, notes
-- [ ] CRUD API through the permission helper (`check_object_access` for single objects)
-- [ ] List endpoint with `from`/`to` for the calendar and `upcoming=true`
-- [ ] Tests: caregiver permission matrix, timezone handling, same-404 for missing and forbidden
+- [x] `Appointment` model: owner, title, provider_name, location, starts_at (UTC), duration_minutes, notes
+- [x] CRUD API through the permission helper (`check_object_access` for single objects)
+- [x] List endpoint with `from`/`to` for the calendar and `upcoming=true`
+- [x] Tests: caregiver permission matrix, timezone handling, same-404 for missing and forbidden
 - UI for this task: see V1-F5
 - **Done when:** appointments show at the right local time and caregivers see them only with an active link.
 
 ## V1-7. Reminders
-- [ ] Add Redis to `docker-compose.yml`
-- [ ] Celery + django-celery-beat configured; worker and beat run locally
-- [ ] `NotificationSettings` model and endpoints (email on/off, push on/off, appointment lead time, missed-dose grace period); the grace period becomes per-user instead of the global setting
-- [ ] Task: find doses due now (per user timezone) and send an email reminder; idempotent via `reminder_sent_at`
+- [x] Add Redis to `docker-compose.yml`
+- [x] Celery + django-celery-beat configured; worker and beat run locally
+- [x] `NotificationSettings` model and endpoints (email on/off, push on/off, appointment lead time, missed-dose grace period); the grace period becomes per-user instead of the global setting
+- [x] Task: find doses due now (per user timezone) and send an email reminder; idempotent via `reminder_sent_at`
 - [ ] Task: appointment reminder (e.g. 24 hours before)
 - [ ] Task: low-supply email alert, sent when `low_supply_alert_raised_at` is set and not yet emailed
 - [ ] Email: care-link invitation
