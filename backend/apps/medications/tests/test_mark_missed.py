@@ -112,3 +112,13 @@ def test_deleting_a_schedule_keeps_what_was_missed(
     assert client_for(alex).delete(f"/api/schedules/{schedule.id}/").status_code == 204
     log = DoseLog.objects.get()
     assert (log.status, log.schedule) == ("missed", None)
+
+
+def test_a_users_own_grace_period_is_used(alex, daily_8am):
+    from apps.accounts.models import NotificationSettings
+
+    NotificationSettings.objects.create(user=alex, missed_dose_grace_minutes=180)
+    assert (
+        doses.mark_missed_doses(utc(2026, 11, 17, 10, 0), lookback_days=0) == 0
+    )  # 08:00 + 3 h = 11:00
+    assert doses.mark_missed_doses(utc(2026, 11, 17, 11, 0), lookback_days=0) == 1

@@ -1,8 +1,6 @@
 import pytest
 
 
-
-
 @pytest.fixture
 def freeze_now(monkeypatch):
     """Freeze 'now' for code that asks scheduling.current_time()."""

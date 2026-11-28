@@ -3,7 +3,6 @@ from typing import ClassVar
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import MaxValueValidator, MinValueValidator
-
 from django.db import models
 
 
@@ -44,6 +43,7 @@ class User(AbstractUser):
     def __str__(self) -> str:
         return self.email
 
+
 class NotificationSettings(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notification_settings"
@@ -54,7 +54,8 @@ class NotificationSettings(models.Model):
     appointment_reminder_minutes = models.PositiveIntegerField(
         default=1440, validators=[MinValueValidator(5), MaxValueValidator(7 * 24 * 60)]
     )
-    # How long after its time an unlogged dose waits before it counts as missed (5 minutes to 12 hours).
+    # How long after its time an unlogged dose waits before it counts as missed
+    # (5 minutes to 12 hours).
     missed_dose_grace_minutes = models.PositiveIntegerField(
         default=60, validators=[MinValueValidator(5), MaxValueValidator(12 * 60)]
     )

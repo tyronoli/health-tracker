@@ -87,6 +87,7 @@ def make_schedule(db):
 
     return _make
 
+
 @pytest.fixture
 def make_dose_log(db):
     def _make(schedule, scheduled_for, status="taken", **overrides):

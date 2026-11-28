@@ -20,6 +20,7 @@ class CustomUserAdmin(UserAdmin):
     )
     add_fieldsets = ((None, {"classes": ("wide",), "fields": ("email", "password1", "password2")}),)
 
+
 @admin.register(NotificationSettings)
 class NotificationSettingsAdmin(admin.ModelAdmin):
     list_display = ("user", "email_enabled", "push_enabled")

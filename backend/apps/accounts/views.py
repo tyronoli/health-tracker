@@ -1,4 +1,4 @@
-from ctypes import cast
+from typing import cast
 
 from django.contrib.auth import login, logout
 from django.utils.decorators import method_decorator
@@ -11,7 +11,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import NotificationSettings, User
-from .serializers import LoginSerializer, NotificationSettingsSerializer, RegisterSerializer, UserSerializer
+from .serializers import (
+    LoginSerializer,
+    NotificationSettingsSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
 
 BACKEND = "django.contrib.auth.backends.ModelBackend"
 
@@ -65,6 +70,7 @@ class MeView(RetrieveUpdateAPIView):
 
     def get_object(self) -> User:
         return self.request.user  # type: ignore[return-value]
+
 
 class NotificationSettingsView(RetrieveUpdateAPIView):
     serializer_class = NotificationSettingsSerializer
