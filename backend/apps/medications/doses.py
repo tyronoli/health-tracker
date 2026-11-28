@@ -2,12 +2,11 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
 from rest_framework.exceptions import ValidationError
 
-from apps.accounts.models import User
+from apps.accounts.models import NotificationSettings, User
 from apps.core.exceptions import Conflict
 
 from . import refills, scheduling
@@ -17,8 +16,9 @@ MAX_EARLY_LOGGING = timedelta(hours=24)
 DEFAULT_LOOKBACK_DAYS = 3
 
 
-def grace_period() -> timedelta:
-    return timedelta(minutes=settings.MISSED_DOSE_GRACE_MINUTES)
+def grace_period(owner: User) -> timedelta:
+    """How long after its time an unlogged dose waits before it counts as missed (per user)."""
+    return timedelta(minutes=NotificationSettings.for_user(owner).missed_dose_grace_minutes)
 
 
 # ---------- log and correct ----------
@@ -106,7 +106,7 @@ def todays_doses(owner: User, now: datetime) -> dict[str, Any]:
             scheduled_for__in=[d.scheduled_for for d in due],
         )
     }
-    grace = grace_period()
+    grace = grace_period(owner)
     items = []
     for d in due:
         log = logs.get((d.schedule.pk, d.scheduled_for))
@@ -184,7 +184,7 @@ def mark_missed_doses(
     now: datetime, *, lookback_days: int = DEFAULT_LOOKBACK_DAYS, owner: User | None = None
 ) -> int:
     """Write 'missed' logs for unlogged doses whose grace period is over. Safe to repeat."""
-    grace = grace_period()
+
     if owner is not None:
         owners = [owner]
     else:
@@ -198,6 +198,7 @@ def mark_missed_doses(
 
     created = 0
     for person in owners:
+        grace = grace_period(person)
         today = scheduling.local_today(person, now)
         candidates = []
         for offset in range(lookback_days + 1):

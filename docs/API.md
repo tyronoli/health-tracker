@@ -1,44 +1,60 @@
 # API.md: Health Tracker REST API
 
-**Status:** Draft v1.1 | **Last updated:** 2026-11-17
-Base path: `/api/` | Format: JSON (UTF-8) | Version tags: **V1** core, **V2** assistant
-Related docs: `SRS.md`, `PRD.md`, `architecture.md`
+**Status:** v1.2, matches the backend as of V1-7a | **Last updated:** 2026-11-28
+Base path: `/api/` | Format: JSON (UTF-8) | Version tags: **V1** core, **V2** assistant (planned)
+Related docs: `SRS.md`, `PRD.md`, `architecture.md`, `CONTEXT.md`
+
+Endpoints marked **Planned** are in the roadmap but not built yet. Everything else in sections 3 to 9 exists in the code and is covered by tests.
 
 ---
 
 ## 1. Conventions
 
 ### 1.1 Authentication and CSRF
-- Session cookie authentication. The browser sends the cookie automatically (same origin).
-- Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) require the CSRF token in the `X-CSRFToken` header. Get the token with `GET /api/auth/csrf/` (sets the `csrftoken` cookie).
-- Endpoints marked **Public** need no login. Everything else returns `401` when not logged in.
-- Note for implementation: DRF's `SessionAuthentication` returns `403` for anonymous users by default. Add an `authenticate_header` to the authentication class so it returns `401`.
+- Session cookie authentication. The browser sends the cookie automatically (same origin; the Vite dev server proxies `/api` to Django).
+- Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) need the CSRF token in the `X-CSRFToken` header. Get the cookie with `GET /api/auth/csrf/`. A missing or wrong token returns `403 permission_denied` ("CSRF check failed.").
+- **Public** endpoints need no login. Everything else returns `401 not_authenticated` when not logged in.
+- Only JSON is accepted and returned. A malformed body returns `400 parse_error`, a wrong content type `415 unsupported_media_type`.
 
 ### 1.2 Whose data? The `profile` parameter
-Data endpoints work on one user's profile at a time.
-- `profile=<user_id>` (query string for reads, body field for creates). Defaults to the current user.
-- If the current user has no access to that profile, the response is `403`.
-- Access is decided by `can_access_profile(request_user, target_user, write)`: the owner always; a caregiver only through an `active` care link, with `edit` required for writes.
-- For a specific object ID (e.g. `/medications/7/`), an object the caller can't access returns `404`, so the existence of other users' data is not revealed.
+Data endpoints work on one person's profile at a time.
+- **Lists and reads of a collection:** `?profile=<user_id>`. Defaults to the current user.
+- **Creating medications and appointments:** `profile` field in the JSON body. Defaults to the current user.
+- **Everything addressed by id** (`/medications/7/`, `/schedules/11/`, `/doses/301/`, `/appointments/21/`) takes no `profile`. The owner is looked up from the object itself.
+- **Doses and schedules** never read `profile` from the body. The owner comes from the schedule or medication.
+
+Access is decided by `can_access_profile(request_user, target_user, write)` in `apps/care/permissions.py`: the owner always; a caregiver only through an `active` care link, with `edit` needed for writes. Access is one-directional.
+
+Failure codes differ by endpoint type (full table in section 10):
+
+| Situation | Status |
+|---|---|
+| `?profile=` or body `profile` is not a number | `400` |
+| `?profile=` unknown, or caller has no access, or `write` needed and link is `view` | `403` |
+| Object id cannot be seen by the caller (missing and forbidden look identical) | `404` |
+| Object is visible but the caller only has `view` and tried to write | `403` |
 
 ### 1.3 Formats
 | Type | Format | Example |
 |---|---|---|
-| Datetime | ISO 8601 in UTC with `Z` | `2026-11-18T00:00:00Z` |
+| Datetime (response) | ISO 8601 in UTC with `Z` | `2026-11-18T00:00:00Z` |
+| Datetime (request, appointments) | ISO 8601 **with an offset**. A time without one is rejected | `2026-11-26T09:30:00+08:00` |
+| Datetime (request, `POST /doses/`) | ISO 8601, send an offset. One without is read as UTC | `2026-11-17T00:00:00Z` |
 | Date | `YYYY-MM-DD` | `2026-11-18` |
-| Time of day | `HH:MM` in the owner's timezone | `08:00` |
+| Time of day | `HH:MM` in the owner's timezone (`HH:MM:SS` is accepted, seconds dropped) | `08:00` |
 | Days of week | integers 0 to 6, Monday = 0 | `[0,1,2,3,4]` |
-| Timezone | IANA name | `Asia/Manila` |
+| Timezone | IANA name, validated | `Asia/Manila` |
 | IDs | integers | `12` |
 
 ### 1.4 Pagination
-List endpoints that can grow large accept `page` (default 1) and `page_size` (default 20, max 100):
+List endpoints marked *paginated* accept `page` (default 1) and `page_size` (default 20, max 100):
 ```json
-{ "count": 57, "next": "/api/doses/?page=2", "previous": null, "results": [ ] }
+{ "count": 57, "next": "http://localhost:5173/api/doses/?page=2", "previous": null, "results": [] }
 ```
+`next` and `previous` are absolute URLs. Lists marked *plain array* (schedules of a medication, low-supply) are not paginated.
 
 ### 1.5 Errors
-All errors use one shape:
+All errors from the API use one shape:
 ```json
 {
   "error": {
@@ -48,212 +64,170 @@ All errors use one shape:
   }
 }
 ```
-| Status | Meaning | Typical `code` |
+`fields` appears only on validation errors that name fields. Errors that apply to the whole request appear under `non_field_errors`.
+
+| Status | Meaning | `code` |
 |---|---|---|
-| 400 | Invalid input | `validation_error`, `invalid_credentials` |
+| 400 | Invalid input | `validation_error`, `invalid_credentials`, `parse_error` |
 | 401 | Not logged in | `not_authenticated` |
-| 403 | Logged in but not allowed | `permission_denied` |
+| 403 | Logged in but not allowed, or CSRF failure | `permission_denied` |
 | 404 | Not found or not visible to you | `not_found` |
 | 405 | Method not allowed | `method_not_allowed` |
-| 409 | Conflict with current state | `already_logged`, `link_exists` |
-| 429 | Rate limited (see `Retry-After` header) | `rate_limited` |
-| 500 | Server error (no stack trace in production) | `server_error` |
+| 409 | Conflict with current state | `already_logged`, `link_exists`, `invalid_state` |
+| 415 | Not JSON | `unsupported_media_type` |
 
-### 1.6 Rate limits (suggested defaults)
-| Scope | Limit |
-|---|---|
-| Login, register, password reset | 5 per minute per IP and per email |
-| Care-link invites | 10 per hour per user |
-| General authenticated requests | 120 per minute per user |
-| Assistant messages (V2) | 20 per hour per user plus a daily token budget |
+Known gaps (V1-8): unknown `/api/` routes and unhandled server errors return Django's HTML pages, not this shape. There is no rate limiting yet, so `429 rate_limited` is never returned.
 
 ---
 
 ## 2. Endpoint index
 
-| # | Method | Path | Ver | Purpose |
-|---|---|---|---|---|
-| **System** | | | | |
-| 1 | GET | `/api/health/` | V1 | Health check (Public) |
-| **Auth and account** | | | | |
-| 2 | GET | `/api/auth/csrf/` | V1 | Set CSRF cookie (Public) |
-| 3 | POST | `/api/auth/register/` | V1 | Create account (Public) |
-| 4 | POST | `/api/auth/login/` | V1 | Log in (Public) |
-| 5 | POST | `/api/auth/logout/` | V1 | Log out |
-| 6 | GET | `/api/auth/me/` | V1 | Current user |
-| 7 | PATCH | `/api/auth/me/` | V1 | Update name, timezone |
-| 8 | DELETE | `/api/auth/me/` | V1 | Delete account and data |
-| 9 | POST | `/api/auth/password/change/` | V1 | Change password |
-| 10 | POST | `/api/auth/password/reset/` | V1 | Request reset email (Public) |
-| 11 | POST | `/api/auth/password/reset/confirm/` | V1 | Set new password (Public) |
-| 12 | GET | `/api/export/` | V1 | Download my data as JSON |
-| **Care circle** | | | | |
-| 13 | GET | `/api/profiles/` | V1 | Profiles I can access |
-| 14 | GET | `/api/care-links/` | V1 | My care links |
-| 15 | POST | `/api/care-links/` | V1 | Invite a recipient |
-| 16 | PATCH | `/api/care-links/{id}/` | V1 | Change permission (recipient) |
-| 17 | POST | `/api/care-links/{id}/accept/` | V1 | Accept invite |
-| 18 | POST | `/api/care-links/{id}/decline/` | V1 | Decline invite |
-| 19 | POST | `/api/care-links/{id}/revoke/` | V1 | End a link |
-| **Medications and schedules** | | | | |
-| 20 | GET | `/api/medications/` | V1 | List medications |
-| 21 | POST | `/api/medications/` | V1 | Create medication |
-| 22 | GET | `/api/medications/{id}/` | V1 | Get medication |
-| 23 | PATCH | `/api/medications/{id}/` | V1 | Update medication |
-| 24 | DELETE | `/api/medications/{id}/` | V1 | Deactivate medication |
-| 25 | POST | `/api/medications/{id}/refill/` | V1 | Record a refill |
-| 26 | GET | `/api/medications/{id}/schedules/` | V1 | List schedules |
-| 27 | POST | `/api/medications/{id}/schedules/` | V1 | Create schedule |
-| 28 | PATCH | `/api/schedules/{id}/` | V1 | Update schedule |
-| 29 | DELETE | `/api/schedules/{id}/` | V1 | Delete schedule |
-| **Doses and refills** | | | | |
-| 30 | GET | `/api/doses/today/` | V1 | Today's doses |
-| 31 | GET | `/api/doses/` | V1 | Dose history |
-| 32 | POST | `/api/doses/` | V1 | Log a dose |
-| 33 | PATCH | `/api/doses/{id}/` | V1 | Correct a logged dose |
-| 34 | GET | `/api/doses/adherence/` | V1 | Adherence summary (Could) |
-| 35 | GET | `/api/refills/low-supply/` | V1 | Low-supply medications |
-| **Appointments** | | | | |
-| 36 | GET | `/api/appointments/` | V1 | List appointments |
-| 37 | POST | `/api/appointments/` | V1 | Create appointment |
-| 38 | GET | `/api/appointments/{id}/` | V1 | Get appointment |
-| 39 | PATCH | `/api/appointments/{id}/` | V1 | Update appointment |
-| 40 | DELETE | `/api/appointments/{id}/` | V1 | Delete appointment |
-| **Notifications** | | | | |
-| 41 | GET | `/api/notification-settings/` | V1 | Get my settings |
-| 42 | PATCH | `/api/notification-settings/` | V1 | Update my settings |
-| 43 | GET | `/api/push/vapid-public-key/` | V1 | Public key for subscribing |
-| 44 | POST | `/api/push/subscriptions/` | V1 | Register a device |
-| 45 | DELETE | `/api/push/subscriptions/{id}/` | V1 | Remove a device |
-| 46 | POST | `/api/push/test/` | V1 | Send a test notification |
-| **Assistant** | | | | |
-| 47 | GET | `/api/assistant/conversations/` | V2 | List my conversations |
-| 48 | POST | `/api/assistant/conversations/` | V2 | Start a conversation |
-| 49 | GET | `/api/assistant/conversations/{id}/` | V2 | Get conversation with messages |
-| 50 | DELETE | `/api/assistant/conversations/{id}/` | V2 | Delete a conversation |
-| 51 | DELETE | `/api/assistant/conversations/` | V2 | Delete all my conversations |
-| 52 | POST | `/api/assistant/conversations/{id}/messages/` | V2 | Send a message (streams reply) |
+| # | Method | Path | Purpose |
+|---|---|---|---|
+| **Auth and account** | | | |
+| 1 | GET | `/api/auth/csrf/` | Set CSRF cookie (Public) |
+| 2 | POST | `/api/auth/register/` | Create account (Public) |
+| 3 | POST | `/api/auth/login/` | Log in (Public) |
+| 4 | POST | `/api/auth/logout/` | Log out |
+| 5 | GET | `/api/auth/me/` | Current user |
+| 6 | PATCH | `/api/auth/me/` | Update name, timezone |
+| **Care circle** | | | |
+| 7 | GET | `/api/profiles/` | Profiles I can open |
+| 8 | GET | `/api/care-links/` | My care links (paginated) |
+| 9 | POST | `/api/care-links/` | Invite a recipient |
+| 10 | PATCH | `/api/care-links/{id}/` | Change permission (recipient) |
+| 11 | POST | `/api/care-links/{id}/accept/` | Accept invite |
+| 12 | POST | `/api/care-links/{id}/decline/` | Decline invite |
+| 13 | POST | `/api/care-links/{id}/revoke/` | End a link |
+| **Medications and schedules** | | | |
+| 14 | GET | `/api/medications/` | List medications (paginated) |
+| 15 | POST | `/api/medications/` | Create medication |
+| 16 | GET | `/api/medications/{id}/` | Get medication |
+| 17 | PATCH | `/api/medications/{id}/` | Update medication |
+| 18 | DELETE | `/api/medications/{id}/` | Stop (deactivate) medication |
+| 19 | POST | `/api/medications/{id}/refill/` | Record a refill |
+| 20 | GET | `/api/medications/{id}/schedules/` | List schedules (plain array) |
+| 21 | POST | `/api/medications/{id}/schedules/` | Create schedule |
+| 22 | PATCH | `/api/schedules/{id}/` | Update schedule |
+| 23 | DELETE | `/api/schedules/{id}/` | Delete schedule |
+| **Doses and refills** | | | |
+| 24 | GET | `/api/doses/today/` | Today's doses |
+| 25 | GET | `/api/doses/` | Dose history (paginated) |
+| 26 | POST | `/api/doses/` | Log a dose |
+| 27 | PATCH | `/api/doses/{id}/` | Correct a logged dose |
+| 28 | GET | `/api/refills/low-supply/` | Low-supply medications (plain array) |
+| **Appointments** | | | |
+| 29 | GET | `/api/appointments/` | List appointments (paginated) |
+| 30 | POST | `/api/appointments/` | Create appointment |
+| 31 | GET | `/api/appointments/{id}/` | Get appointment |
+| 32 | PATCH | `/api/appointments/{id}/` | Update appointment |
+| 33 | DELETE | `/api/appointments/{id}/` | Delete appointment |
+| **Notifications** | | | |
+| 34 | GET | `/api/notification-settings/` | Get my settings |
+| 35 | PATCH | `/api/notification-settings/` | Update my settings |
+
+Not built yet: see section 11.
 
 ---
 
-## 3. System
-
-### GET `/api/health/` (Public)
-Returns `200 {"status": "ok"}` if the app and database respond. Used by deploy checks.
-
----
-
-## 4. Auth and account
+## 3. Auth and account
 
 ### GET `/api/auth/csrf/` (Public)
-Sets the `csrftoken` cookie. `204 No Content`. Call it once when the app loads.
+Sets the `csrftoken` cookie. `204 No Content`. The frontend calls it automatically before the first unsafe request.
 
 ### POST `/api/auth/register/` (Public)
 ```json
 { "email": "alex@example.com", "password": "S0me-long-password", "display_name": "Alex", "timezone": "Asia/Manila" }
 ```
-`201`:
+`201` with the user, and the user is logged in:
 ```json
 { "id": 1, "email": "alex@example.com", "display_name": "Alex", "timezone": "Asia/Manila" }
 ```
-Logs the user in. Errors: `400` for invalid email, weak password, or unknown timezone. If the email is already registered, return a generic `400` ("Could not create the account") instead of saying the email exists. Adding email verification later would close this gap completely.
+- `email` is stored lowercase.
+- `timezone` must be a real IANA name (default `UTC`). `display_name` is optional.
+- The password goes through Django's validators (length, common, numeric, similarity to the email or name).
+- Errors `400 validation_error`: bad email, weak password (`fields.password`, a list of messages), unknown timezone (`fields.timezone`). An already-registered email (case-insensitive) returns a deliberately vague `fields.non_field_errors: ["Could not create the account."]`.
 
 ### POST `/api/auth/login/` (Public)
 ```json
 { "email": "alex@example.com", "password": "S0me-long-password" }
 ```
-`200`: the user object (as above). Sets the session cookie. Errors: `400 invalid_credentials` (same message for unknown email and wrong password), `429`.
+`200` with the user object. Sets the session cookie. Email is case-insensitive.
+Error `400 invalid_credentials` ("Invalid email or password.") for a wrong password, unknown email and inactive account alike.
 
 ### POST `/api/auth/logout/`
-`204`. Ends the session.
+`204`. Ends the session. `401` if not logged in.
 
 ### GET `/api/auth/me/`
-`200`:
-```json
-{ "id": 1, "email": "alex@example.com", "display_name": "Alex", "timezone": "Asia/Manila" }
-```
+`200` with the user object above.
 
 ### PATCH `/api/auth/me/`
-Body: any of `display_name`, `timezone`. `200` with the updated user. Email changes are not supported in V1.
-
-### DELETE `/api/auth/me/`
-Body: `{ "password": "..." }` to confirm. `204`. Deletes the account, all owned data, and all care links.
-
-### POST `/api/auth/password/change/`
-`{ "old_password": "...", "new_password": "..." }` returns `204`. Errors: `400` for a wrong old password or weak new password.
-
-### POST `/api/auth/password/reset/` (Public)
-`{ "email": "alex@example.com" }` always returns `204`, whether or not the account exists. If it exists, an email with a one-time link is sent.
-
-### POST `/api/auth/password/reset/confirm/` (Public)
-`{ "uid": "...", "token": "...", "new_password": "..." }` returns `204`, or `400` for an invalid or expired token.
-
-### GET `/api/export/`
-Returns `200` with a JSON download of the current user's own data (profile, medications, schedules, dose logs, appointments, settings). Rate limited.
+Body: any of `display_name`, `timezone`. `200` with the updated user. `email` and `id` are read only and silently ignored. `400` for an unknown timezone. `PUT` is not allowed.
 
 ---
 
-## 5. Care circle
+## 4. Care circle
 
 ### GET `/api/profiles/`
-Profiles the current user may open: themselves plus recipients of active links.
+Profiles the current user may open: themselves first, then recipients of **active** links where the user is the caregiver (sorted by name, then email). Not paginated.
 ```json
 [
-  { "user_id": 1, "display_name": "Alex", "relationship": "self", "permission": "edit" },
-  { "user_id": 2, "display_name": "Mum", "relationship": "recipient", "permission": "view" }
+  { "user_id": 1, "display_name": "Alex", "relationship": "self", "permission": "edit", "timezone": "Asia/Manila" },
+  { "user_id": 2, "display_name": "Mum", "relationship": "recipient", "permission": "view", "timezone": "Europe/London" }
 ]
 ```
-Used by the profile switcher.
+`display_name` falls back to the email when empty. `timezone` is each person's own timezone, used to show their times. Used by the profile switcher.
 
-### GET `/api/care-links/`
-Query: `role=caregiver|recipient` (optional), `status=pending|active|declined|revoked` (optional).
+### Care link object
 ```json
 {
-  "results": [
-    {
-      "id": 5,
-      "caregiver": { "id": 1, "display_name": "Alex", "email": "alex@example.com" },
-      "recipient": { "id": 2, "display_name": "Mum", "email": "mum@example.com" },
-      "permission": "view",
-      "status": "pending",
-      "created_at": "2026-11-17T08:00:00Z",
-      "responded_at": null
-    }
-  ]
+  "id": 5,
+  "caregiver": { "id": 1, "display_name": "Alex", "email": "alex@example.com" },
+  "recipient": { "id": 2, "display_name": "Mum", "email": "mum@example.com" },
+  "permission": "view",
+  "status": "pending",
+  "created_at": "2026-11-17T08:00:00Z",
+  "responded_at": null
 }
 ```
-Only links where the current user is the caregiver or the recipient.
+`permission`: `view` or `edit`. `status`: `pending`, `active`, `declined`, `revoked`.
+Every care-link endpoint is scoped to links where the caller is the caregiver or the recipient. Any other link id returns `404`.
+
+### GET `/api/care-links/`
+Paginated, newest first. Query: `role=caregiver|recipient` (optional), `status=pending|active|declined|revoked` (optional). `400` for any other value.
 
 ### POST `/api/care-links/`
 Caregiver invites a recipient.
 ```json
 { "email": "mum@example.com", "permission": "view" }
 ```
-`201`:
+`permission` defaults to `view`. `201`:
 ```json
 { "message": "If an account exists for that email, an invitation has been sent." }
 ```
-The response is the same whether or not the account exists, so the endpoint can't be used to find out who has an account. If the account exists, a `pending` link is created and the recipient is notified. Errors: `400` for yourself or an invalid email, `409 link_exists` when an active or pending link already exists, `429`.
+The `201` is identical whether or not the account exists, and nothing is created for an unknown email. If the account exists, a `pending` link is created. (No invitation email is sent yet; planned in V1-7b.)
+
+Errors: `400` for an invalid email or permission, `400` with `fields.email: ["You cannot link to yourself."]`, `409 link_exists` when a `pending` or `active` link to that person already exists. After a `declined` or `revoked` link, a new invitation is allowed.
 
 ### PATCH `/api/care-links/{id}/`
-Recipient only. Body: `{ "permission": "view" }` (or `edit`). `200` with the link. Only valid while the link is `active`.
+Recipient only. Body: `{ "permission": "view" }` (or `edit`). `200` with the link. Errors: `403` for the caregiver, `409 invalid_state` unless the link is `active`, `400` for a bad value.
 
 ### POST `/api/care-links/{id}/accept/`
-Recipient only. Optional body: `{ "permission": "view" }` to accept with a lower level than requested. `200` with the link, status `active`. Errors: `409` if the link is not `pending`.
+Recipient only, `pending` links only. Optional body `{ "permission": "view" }` to accept with a level equal to or lower than requested. `200` with the link, status `active`, `responded_at` set. Errors: `403` for the caregiver, `409 invalid_state` if not pending, `400` (`fields.permission`) when asking for more than was requested.
 
 ### POST `/api/care-links/{id}/decline/`
-Recipient only. `200` with the link, status `declined`.
+Recipient only, `pending` only. `200` with the link, status `declined`. Errors: `403`, `409 invalid_state`.
 
 ### POST `/api/care-links/{id}/revoke/`
-Recipient or caregiver. `200` with the link, status `revoked`. Access ends immediately.
+Caregiver or recipient. Works on `pending` (cancels a request) and `active` links. `200` with the link, status `revoked`. Access ends immediately. Error: `409 invalid_state` for a `declined` or `revoked` link.
 
 ---
 
-## 6. Medications and schedules
+## 5. Medications and schedules
 
-All endpoints here accept `profile` and are checked by `can_access_profile`.
+All collection endpoints accept `profile` (section 1.2). Medications are never hard-deleted.
 
-**Medication object**
+### Medication object
 ```json
 {
   "id": 7,
@@ -264,80 +238,80 @@ All endpoints here accept `profile` and are checked by `can_access_profile`.
   "pills_remaining": 24,
   "refill_threshold": 10,
   "active": true,
-  "days_supply_left": 12,
   "low_supply": false,
+  "days_supply_left": 12,
+  "schedules": [
+    { "id": 11, "medication": 7, "time_of_day": "08:00", "days_of_week": [0,1,2,3,4,5,6],
+      "start_date": "2026-11-17", "end_date": null, "pills_per_dose": 1, "active": true }
+  ],
   "created_at": "2026-11-01T02:00:00Z",
   "updated_at": "2026-11-17T01:30:00Z"
 }
 ```
-`days_supply_left` (nullable) and `low_supply` are computed and read-only. (The example uses a fake medication.)
+Read only: `id`, `owner`, `low_supply` (pills at or below the threshold), `days_supply_left`, `schedules`, `created_at`, `updated_at`. `schedules` includes paused ones, ordered by time. `days_supply_left` is whole days at the current weekly rate, `null` if the medication is stopped or has no usable schedule.
 
 ### GET `/api/medications/`
-Query: `profile`, `active=true|false`, `page`, `page_size`. `200` paginated list.
+Paginated, sorted by name. Query: `profile`, `active=true|false` (`400` otherwise), `page`, `page_size`.
 
 ### POST `/api/medications/`
 ```json
 { "profile": 1, "name": "Metformin", "dosage": "500 mg", "instructions": "Take with food", "pills_remaining": 30, "refill_threshold": 10 }
 ```
-`201` with the medication. Needs write access to the profile. Errors: `400` (name required, negative numbers), `403`.
+`201` with the medication. Only `name` is required (not blank, max 200). `dosage` max 100. `pills_remaining` and `refill_threshold` are integers 0 to 100000 (default 0). Access to `profile` is checked before the body: `403` without an `edit` link. Creating a medication that is already low does not raise an alert.
 
 ### GET `/api/medications/{id}/`
-`200` with the medication, or `404`.
+`200` or `404`.
 
 ### PATCH `/api/medications/{id}/`
-Any of `name`, `dosage`, `instructions`, `pills_remaining`, `refill_threshold`, `active`. `200` with the medication.
+Any of `name`, `dosage`, `instructions`, `pills_remaining`, `refill_threshold`, `active`. `200` with the medication. Editing stock or threshold can raise or clear the low-supply marker. `owner` in the body is ignored. `PUT` returns `405`. `403` for a view-only caregiver.
 
 ### DELETE `/api/medications/{id}/`
-Deactivates (soft delete) so the dose history is kept. `204`.
+Soft delete: sets `active=false` and keeps schedules and history. `204`. Restart with `PATCH {"active": true}`.
 
 ### POST `/api/medications/{id}/refill/`
-`{ "pills_added": 30 }` returns `200` with the medication. Clears the low-supply alert flag if the supply is back above the threshold. Errors: `400` if the number is not a positive integer.
+`{ "pills_added": 30 }` (integer 1 to 10000). `200` with the medication. Clears the low-supply marker if stock is back above the threshold. `400` (`fields.pills_added`) if the value is invalid or the total would exceed 100000.
 
-**Schedule object**
+### Schedule object
 ```json
 {
-  "id": 11,
-  "medication": 7,
-  "time_of_day": "08:00",
-  "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-  "start_date": "2026-11-17",
-  "end_date": null,
-  "pills_per_dose": 1,
-  "active": true
+  "id": 11, "medication": 7, "time_of_day": "08:00", "days_of_week": [0,1,2,3,4,5,6],
+  "start_date": "2026-11-17", "end_date": null, "pills_per_dose": 1, "active": true
 }
 ```
 
 ### GET `/api/medications/{id}/schedules/`
-`200` list of schedules.
+Plain array, ordered by time. Works for stopped medications too.
 
 ### POST `/api/medications/{id}/schedules/`
-Body: `time_of_day`, `days_of_week`, `start_date`, optional `end_date`, optional `pills_per_dose` (default 1). `201` with the schedule. Errors: `400` if the end date is before the start date or the days list is empty.
+Body: `time_of_day`, `days_of_week`, `start_date` (all required), optional `end_date`, `pills_per_dose` (1 to 100, default 1), `active` (default true). `201` with the schedule. The medication comes from the URL, never the body.
+Rules: `days_of_week` is a non-empty list of 0 to 6 (duplicates removed, sorted). `end_date` must not be before `start_date`. Tracking starts now, so doses before the schedule existed are never marked missed.
 
 ### PATCH `/api/schedules/{id}/`
-Any schedule field. `200`. Changes apply to future doses only; logged doses are not rewritten.
+Any schedule field except `medication`. `200`. Before the change, doses that were already missed under the old rules are recorded. Changing the time, days, start date or end date, or re-activating a paused schedule, restarts tracking. Changing only `pills_per_dose` or pausing does not. `end_date` is checked against the stored `start_date`.
 
 ### DELETE `/api/schedules/{id}/`
-`204`. Existing dose logs are kept.
+`204`. Missed doses are recorded first. Existing dose logs are kept (their `schedule` becomes `null`).
+
+There is no `GET /api/schedules/{id}/`. Schedules are read through their medication.
 
 ---
 
-## 7. Doses and refills
+## 6. Doses and refills
 
-**Dose log object**
+Doses are **calculated** from schedules. A dose log row exists only once a dose is taken, skipped or marked missed.
+
+### Dose log object
 ```json
 {
-  "id": 301,
-  "medication": 7,
-  "schedule": 11,
-  "scheduled_for": "2026-11-17T00:00:00Z",
-  "status": "taken",
-  "logged_at": "2026-11-17T00:03:12Z",
-  "note": ""
+  "id": 301, "medication": 7, "schedule": 11,
+  "scheduled_for": "2026-11-17T00:00:00Z", "status": "taken",
+  "logged_at": "2026-11-17T00:03:12Z", "note": ""
 }
 ```
+`schedule` is `null` after its schedule was deleted.
 
 ### GET `/api/doses/today/`
-Query: `profile`. Doses due today in the profile owner's timezone, each with its current state.
+Query: `profile`. Doses due today in the **profile owner's** timezone, each with its current state.
 ```json
 {
   "date": "2026-11-17",
@@ -349,6 +323,7 @@ Query: `profile`. Doses due today in the profile owner's timezone, each with its
       "scheduled_for": "2026-11-17T00:00:00Z",
       "status": "taken",
       "dose_log_id": 301,
+      "logged_at": "2026-11-17T00:03:12Z",
       "pills_per_dose": 1
     },
     {
@@ -357,178 +332,187 @@ Query: `profile`. Doses due today in the profile owner's timezone, each with its
       "scheduled_for": "2026-11-17T12:00:00Z",
       "status": "pending",
       "dose_log_id": null,
+      "logged_at": null,
       "pills_per_dose": 1
     }
   ]
 }
 ```
-`status` is one of `pending`, `taken`, `skipped`, `missed`.
+Sorted by time, then medication name. `status` is `pending`, `taken`, `skipped` or `missed`. An unlogged dose shows as `missed` once the owner's grace period has passed (default 60 minutes, see notification settings), unless it is from before the schedule's tracking started. `dose_log_id` and `logged_at` are `null` until a log exists. A `missed` dose with a `dose_log_id` was recorded by the background job.
 
 ### GET `/api/doses/`
-Query: `profile`, `from` and `to` (dates), `medication`, `status`, `page`, `page_size`. `200` paginated list of dose logs, newest first.
+Dose history, newest first, paginated. Query: `profile`, `from` and `to` (dates, inclusive, in the **owner's** timezone), `medication` (id), `status` (`taken|skipped|missed`), `page`, `page_size`. `400` for a bad date, number or status.
 
 ### POST `/api/doses/`
 Log a dose.
 ```json
-{ "profile": 1, "medication": 7, "schedule": 11, "scheduled_for": "2026-11-17T00:00:00Z", "status": "taken", "note": "" }
+{ "schedule": 11, "scheduled_for": "2026-11-17T00:00:00Z", "status": "taken", "note": "", "medication": 7 }
 ```
-`201` with the dose log. `status` is `taken` or `skipped`. For an unscheduled (as-needed) dose, omit `schedule` and set `scheduled_for` to the time taken. Effects: a `taken` dose reduces `pills_remaining` by `pills_per_dose` (never below 0) and may trigger the low-supply alert. Errors: `409 already_logged` when that schedule and time already has a log, `400` for an invalid status or a time that does not match the schedule, `403`.
+`201` with the dose log. `status` is `taken` or `skipped` (`missed` is set only by the system). `note` is optional, max 500. `medication` is optional and must match the schedule's medication. `profile` is ignored: the owner comes from the schedule.
+
+Effects: `taken` deducts `pills_per_dose` (never below 0), remembers how many were really deducted, and may raise the low-supply marker. `skipped` leaves stock alone. The whole request is atomic.
+
+Errors:
+- `400 validation_error`: `scheduled_for` does not exactly match a dose of the schedule (wrong time, day, outside start and end dates), more than 24 hours in the future (`fields.scheduled_for`), schedule or medication not active, medication mismatch, bad status, note too long.
+- `404`: schedule missing or not visible. `403`: visible but the link is `view` only.
+- `409 already_logged`: that schedule and time already has a log (including a system-made `missed` one; correct it with `PATCH` instead).
 
 ### PATCH `/api/doses/{id}/`
-Correct a mistake: `{ "status": "skipped", "note": "..." }`. `200`. Pill counts are adjusted to match the change (taken to skipped adds the pills back). Only `taken` and `skipped` are accepted; `missed` is set by the system.
-
-### GET `/api/doses/adherence/`
-Query: `profile`, `days` (default 30, max 365).
-```json
-{ "days": 30, "scheduled": 60, "taken": 55, "skipped": 2, "missed": 3, "adherence_percent": 91.7 }
-```
-`adherence_percent` is taken divided by scheduled. Optional (Could).
+Correct a mistake: `{ "status": "skipped", "note": "felt sick" }`. Both fields optional. `200` with the dose log.
+- `taken` to `skipped` gives back exactly the pills that were deducted. `skipped` or `missed` to `taken` deducts again (nothing if the schedule was deleted).
+- Changing the status updates `logged_at`. Editing only the note does not.
+- `status` must be `taken` or `skipped`; `missed` returns `400`.
+- There is no way to remove a log. `DELETE` and `GET /api/doses/{id}/` are not available.
 
 ### GET `/api/refills/low-supply/`
-Query: `profile`. `200` list of medications at or below their threshold, each with `days_supply_left`.
+Query: `profile`. Plain array of **active** medications at or below their threshold, fewest pills first, each in the medication object format (with `days_supply_left`).
 
 ---
 
-## 8. Appointments
+## 7. Appointments
 
-**Appointment object**
+### Appointment object
 ```json
 {
   "id": 21,
   "owner": 1,
-  "title": "Check-up",
-  "provider_name": "Dr. Santos",
-  "location": "City Clinic, Room 4",
-  "starts_at": "2026-11-25T02:30:00Z",
+  "title": "Chest X-ray",
+  "type": "imaging",
+  "provider_name": "St. Luke's Imaging",
+  "location": "Level 2",
+  "starts_at": "2026-11-26T01:30:00Z",
   "duration_minutes": 30,
-  "notes": "Bring medication list",
-  "created_at": "2026-11-17T01:00:00Z"
+  "preparation": "Wear loose clothing",
+  "notes": "Bring the referral",
+  "status": "scheduled",
+  "created_at": "2026-11-17T01:00:00Z",
+  "updated_at": "2026-11-17T01:30:00Z"
 }
 ```
+`type`: `checkup` (default `other`), `consultation`, `imaging`, `lab_test`, `procedure`, `other`.
+`status`: `scheduled` (default), `completed`, `cancelled`. `preparation` is what the clinic told the user, stored as written (the app gives no medical advice).
+Read only: `id`, `owner`, `created_at`, `updated_at`.
 
 ### GET `/api/appointments/`
-Query: `profile`, `from`, `to` (datetimes, for the calendar), `upcoming=true` (only future), `page`, `page_size`. Sorted by `starts_at`.
+Paginated. Query:
+
+| Param | Meaning |
+|---|---|
+| `profile` | whose appointments |
+| `from`, `to` | dates, inclusive, in the **owner's** timezone |
+| `type`, `status` | exact match; `400` for unknown values |
+| `upcoming=true` | `starts_at >= now` **and** `status=scheduled`, soonest first |
+| `upcoming=false` | already started (`starts_at < now`), any status, newest first |
+
+Without `upcoming` the order is soonest first. Any other `upcoming` value returns `400`. The month calendar uses `from` and `to`.
 
 ### POST `/api/appointments/`
-Body: `profile` (optional), `title` (required), `starts_at` (required), and optionally `provider_name`, `location`, `duration_minutes`, `notes`. `201`.
+Body: `title` and `starts_at` required; optional `profile`, `type`, `provider_name` (max 200), `location` (max 200), `duration_minutes` (1 to 1440 or `null`), `preparation` (max 2000), `notes` (max 5000), `status`. `title` is not blank, max 200.
+`starts_at` **must include an offset**. A time like `2026-11-26T09:30:00` returns `400` with a message explaining the fix. Past appointments may be recorded. `201`. `owner` in the body is ignored. Access to `profile` is checked first (`403` without `edit`).
 
-### GET / PATCH / DELETE `/api/appointments/{id}/`
-Standard behavior: `200`, `200`, `204`. `404` if not visible.
+### GET `/api/appointments/{id}/`
+`200`, or `404` if missing or not visible.
+
+### PATCH `/api/appointments/{id}/`
+Any writable field, including `status` and `duration_minutes: null`. `200`. `PUT` returns `405`. `403` for a view-only caregiver.
+
+### DELETE `/api/appointments/{id}/`
+Really deletes the row. `204`. To keep a record, set `status` to `cancelled` instead.
 
 ---
 
-## 9. Notifications
+## 8. Notifications
 
 ### GET `/api/notification-settings/`
+Always the current user's own settings. A user who never changed anything gets the defaults.
 ```json
 { "email_enabled": true, "push_enabled": true, "appointment_reminder_minutes": 1440, "missed_dose_grace_minutes": 60 }
 ```
-Always the current user's own settings.
 
 ### PATCH `/api/notification-settings/`
-Any of the four fields. `200`. `appointment_reminder_minutes` and `missed_dose_grace_minutes` must be positive.
+Any of the four fields. `200` with the settings.
+- `appointment_reminder_minutes`: 5 to 10080 (7 days).
+- `missed_dose_grace_minutes`: 5 to 720 (12 hours). Used for the missed-dose job and for the `missed` status on Today.
+- `email_enabled`, `push_enabled`: booleans.
+- `400` for anything else. `PUT`, `POST`, `DELETE` return `405`.
 
-### GET `/api/push/vapid-public-key/`
-`200 {"public_key": "..."}`. The browser needs it to subscribe.
-
-### POST `/api/push/subscriptions/`
-Body from the browser's `PushSubscription.toJSON()`:
-```json
-{ "endpoint": "https://push.example/abc", "keys": { "p256dh": "...", "auth": "..." }, "user_agent": "Chrome on Android" }
-```
-`201 {"id": 3}`. Re-posting the same endpoint updates it instead of duplicating.
-
-### DELETE `/api/push/subscriptions/{id}/`
-`204`. Only the owner can delete.
-
-### POST `/api/push/test/`
-Sends a test notification to the current user's devices. `202`. Rate limited.
+Settings are personal. A caregiver cannot see or change a recipient's settings.
 
 ---
 
-## 10. Assistant (Version 2)
+## 9. Background jobs (no HTTP)
 
-Every endpoint here works only on the caller's own conversations (`404` otherwise). The assistant is read-only and cannot change any data.
+Celery beat runs these. They have no endpoints.
 
-**Conversation object**
-```json
-{ "id": 4, "profile": 1, "title": "Appointments this week", "created_at": "2026-11-17T03:00:00Z" }
-```
-
-**Message object**
-```json
-{ "id": 90, "role": "assistant", "content": "You have one appointment this week...", "created_at": "2026-11-17T03:00:05Z" }
-```
-
-### GET `/api/assistant/conversations/`
-Paginated list, newest first.
-
-### POST `/api/assistant/conversations/`
-`{ "profile": 1 }` (optional, defaults to the current user). `201` with the conversation. The profile is fixed on the server at creation and checked with `can_access_profile`. The model can never change it.
-
-### GET `/api/assistant/conversations/{id}/`
-`200` with the conversation and its `messages` array.
-
-### DELETE `/api/assistant/conversations/{id}/`
-`204`. Permanently deletes the conversation and its messages.
-
-### DELETE `/api/assistant/conversations/`
-`204`. Deletes all of the caller's conversations.
-
-### POST `/api/assistant/conversations/{id}/messages/`
-Send a user message and stream the reply.
-```json
-{ "content": "What appointments do I have this week?" }
-```
-Response: `200` with `Content-Type: text/event-stream`. Each event has a name and a JSON `data` line:
-```
-event: message_start
-data: {"message_id": 91}
-
-event: tool_call
-data: {"name": "list_upcoming_appointments", "arguments": {"days_ahead": 7}}
-
-event: tool_result
-data: {"name": "list_upcoming_appointments", "ok": true}
-
-event: token
-data: {"text": "You have one appointment "}
-
-event: message_end
-data: {"message_id": 91}
-```
-On failure an `error` event is sent: `data: {"code": "rate_limited", "message": "..."}`. Errors before streaming starts return normal JSON errors: `404`, `429`, `400` (empty or too-long content).
-
-Client note: the browser's `EventSource` only supports GET, so use `fetch` with a `ReadableStream` for this POST. To stop a reply, abort the request.
-
-#### Assistant tools (internal, not HTTP endpoints)
-These are the only functions the model can call. Each runs on the server with the user and profile taken from the conversation. They are never taken from the model's arguments, and each calls `can_access_profile`.
-
-| Tool | Arguments | Returns |
+| Task | Every | What it does |
 |---|---|---|
-| `list_upcoming_appointments` | `days_ahead` (int, 1 to 60, default 7) | Appointments in that window |
-| `get_todays_doses` | none | Today's doses and their status |
-| `list_low_supply_medications` | none | Medications at or below threshold |
-| `get_dose_history` | `days` (int, 1 to 30), optional `medication_id` | Dose logs in that period |
+| `reminders.tasks.send_dose_reminders` | 60 s | Emails each owner whose dose time passed within the last 30 minutes and is not logged. One email per owner per run, at most once per dose (`DoseReminder` row, claimed atomically, released if sending fails). Respects `email_enabled`. Goes to the owner only. |
+| `reminders.tasks.mark_missed_doses` | 300 s | Writes `missed` logs for unlogged doses past the owner's grace period (looks back 3 days). Safe to repeat. Also available as `python manage.py mark_missed_doses [--lookback-days N]`. |
 
-Arguments are validated before running. Results are truncated if large, and stored text such as notes is passed as data and never treated as instructions.
+In development, emails print in the Celery worker terminal.
 
 ---
 
-## 11. Permission matrix
+## 10. Permission matrix
 
-| Caller | Read profile data | Write profile data |
+`alex` is the caregiver, `mum` the recipient. Status codes seen when alex calls an endpoint for mum's data, by link state:
+
+| Action | no link / pending / declined / revoked | active `view` | active `edit` |
+|---|---|---|---|
+| List with `?profile=` (medications, appointments, today, history, low-supply) | 403 | 200 | 200 |
+| Get one object (medication, appointment) | 404 | 200 | 200 |
+| List a medication's schedules | 404 | 200 | 200 |
+| Create with `profile` in body (medication, appointment) | 403 | 403 | 201 |
+| Create a schedule under mum's medication | 404 | 403 | 201 |
+| Log a dose on mum's schedule | 404 | 403 | 201 |
+| Patch or delete an object, correct a dose, refill | 404 | 403 | 200 / 204 |
+
+Other rules:
+- A caller with no link gets the same `404` for a real object and a missing one.
+- An unknown `?profile=` id behaves like a profile with no access (`403`).
+- Access is one-directional: if alex cares for mum, mum gets nothing of alex's.
+- Care links, notification settings and (later) push subscriptions and assistant conversations are personal. A caregiver never reaches them through a care link.
+- A link stops granting access the moment it is `declined` or `revoked`.
+
+---
+
+## 11. Not built yet
+
+| Planned | Task |
+|---|---|
+| `GET /api/health/` health check | V1-8 |
+| `DELETE /api/auth/me/` (delete account), `POST /api/auth/password/change/`, password reset (`/api/auth/password/reset/` and `/confirm/`), `GET /api/export/` | V1-8 |
+| Rate limiting and `429 rate_limited` | V1-8 |
+| JSON `404` and `500` for unknown `/api/` routes | V1-8 |
+| Web push: `GET /api/push/vapid-public-key/`, `POST /api/push/subscriptions/`, `DELETE /api/push/subscriptions/{id}/`, `POST /api/push/test/` | V1-7c |
+| `GET /api/doses/adherence/` (parked), as-needed doses without a schedule (parked) | later |
+| Assistant endpoints (section 12) | V2 |
+
+Email reminders for appointments, low supply and invitations are tracked in V1-7b. They add no endpoints.
+
+---
+
+## 12. Assistant (Version 2, planned)
+
+Not implemented. Design for reference. Every endpoint works only on the caller's own conversations (`404` otherwise). The assistant is read-only and cannot change data.
+
+| Method | Path | Purpose |
 |---|---|---|
-| Owner | Yes | Yes |
-| Caregiver, active link, `view` | Yes | No (`403`) |
-| Caregiver, active link, `edit` | Yes | Yes |
-| Caregiver, `pending`, `declined`, or `revoked` link | No (`403` / `404`) | No |
-| Anyone else | No (`403` / `404`) | No |
+| GET | `/api/assistant/conversations/` | List my conversations (paginated, newest first) |
+| POST | `/api/assistant/conversations/` | Start one. Body `{ "profile": 1 }` (optional). The profile is fixed on the server and checked with `can_access_profile` |
+| GET | `/api/assistant/conversations/{id}/` | Conversation with its `messages` |
+| DELETE | `/api/assistant/conversations/{id}/` | Delete one, with its messages |
+| DELETE | `/api/assistant/conversations/` | Delete all of mine |
+| POST | `/api/assistant/conversations/{id}/messages/` | Send `{ "content": "..." }`, stream the reply |
 
-Care links, notification settings, push subscriptions, and assistant conversations are always personal to their owner. A caregiver never gets access to them through a care link.
+The message endpoint returns `text/event-stream` with the events `message_start`, `tool_call`, `tool_result`, `token`, `message_end`, and `error` (`{"code", "message"}`). Use `fetch` with a `ReadableStream`, since `EventSource` cannot POST. Abort the request to stop a reply.
 
-## 12. Implementation notes
-- Build in this order: auth, care links plus `can_access_profile`, medications, schedules and doses, refills, appointments, notifications, then the assistant.
-- Put business rules (refill math, due-dose calculation, reminders) in `services.py` modules and keep views thin.
-- Write the authorization test for each endpoint before the endpoint itself.
-- Generate an OpenAPI schema (for example with `drf-spectacular`) once the endpoints exist and use it to check that this document still matches the code.
+The model can call only four server-side tools, and each takes the user and profile from the conversation, never from its own arguments: `list_upcoming_appointments(days_ahead 1-60)`, `get_todays_doses()`, `list_low_supply_medications()`, `get_dose_history(days 1-30, medication_id?)`. Stored text such as notes is treated as data, never as instructions.
+
+---
+
+## 13. Implementation notes
+- Business rules live in `services.py`, `scheduling.py`, `doses.py` and `refills.py`. Views stay thin.
+- Every viewset overrides `get_object()` so missing and forbidden objects return the same `404`. `create()` checks access before validating the body.
+- Write the "another user is denied" test for each endpoint before the endpoint.
+- Once the endpoints settle, generate an OpenAPI schema (for example with `drf-spectacular`) and check this document against it.

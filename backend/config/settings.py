@@ -42,12 +42,14 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.postgres",
+    "django_celery_beat",
     "rest_framework",
     "apps.accounts",
     "apps.core",
     "apps.care",
     "apps.medications",
     "apps.appointments",
+    "apps.reminders",
 ]
 
 REST_FRAMEWORK = {
@@ -94,6 +96,28 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# --- Celery (background jobs) ---
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = REDIS_URL
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_TIMEZONE = "UTC"
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+CELERY_BEAT_SCHEDULE = {
+    "send-dose-reminders": {
+        "task": "apps.reminders.tasks.send_dose_reminders",
+        "schedule": 60.0,  # seconds
+    },
+    "mark-missed-doses": {
+        "task": "apps.reminders.tasks.mark_missed_doses",
+        "schedule": 300.0,
+    },
+}
+
+# --- Email (printed in the terminal during development) ---
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Health Tracker <noreply@localhost>")
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:5173")
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases

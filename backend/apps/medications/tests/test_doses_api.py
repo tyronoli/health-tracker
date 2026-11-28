@@ -422,3 +422,14 @@ def test_caregiver_correct_dose(
     assert resp.status_code == expected
     log.refresh_from_db()
     assert log.status == ("skipped" if expected == 200 else "taken")
+
+
+def test_today_uses_the_users_own_grace_period(client_for, make_medication, make_schedule, alex):
+    from apps.accounts.models import NotificationSettings
+
+    NotificationSettings.objects.create(user=alex, missed_dose_grace_minutes=480)
+    make_schedule(make_medication(alex), time_of_day=time(8, 0))  # now is 12:00
+
+    dose = client_for(alex).get(TODAY).json()["doses"][0]
+
+    assert dose["status"] == "pending"  # 08:00 + 8 h = 16:00 has not passed
